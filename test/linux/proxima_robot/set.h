@@ -130,11 +130,12 @@ void set_K_P(double k_p, uint8* cmdbuf)
 
 void set_K_W(double k_w, uint8* cmdbuf)
 {
-    if (k_w < 0 || k_w > 25.599) {
+    double k_w_corrected = k_w / 2.0; // 2倍になるので補正
+    if (k_w_corrected < 0 || k_w_corrected > 25.599) {
         printf("invalid k_w\n");
         return;
     }
-    int16 k_w_int = (int16)(k_w * 1280);
+    int16 k_w_int = (int16)(k_w_corrected * 1280);
     cmdbuf[12] = k_w_int >> 8;
     cmdbuf[11] = k_w_int & 0x00ff;
 }
