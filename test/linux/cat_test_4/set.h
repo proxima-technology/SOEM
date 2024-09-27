@@ -97,11 +97,12 @@ void set_torque(double tor, uint8* cmdbuf)
 /*指令速度セット(-804.0から804.0まで)*/
 void set_speed(double spd, uint8* cmdbuf)
 {
-    if (spd < -804.0 || spd > 804.0) {
+    double spd_corrected = spd * 2.0;
+    if (spd_corrected < -804.0 || spd_corrected > 804.0) {
         printf("invalid speed\n");
         return;
     }
-    int16 spd_int = (int16)(spd * 256.0 / (2 * M_PI));
+    int16 spd_int = (int16)(spd_corrected * 256.0 / (2 * M_PI));
     cmdbuf[4] = (spd_int >> 8);
     cmdbuf[3] = spd_int & 0x00ff;
 }
