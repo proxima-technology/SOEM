@@ -21,6 +21,7 @@ double get_angular_vel(uint8* motor_data)
 {
     double act_angl_vel;
     act_angl_vel = ((int16)(motor_data[3] + ((uint16)(motor_data[4]) << 8))) / 256.0 * 2 * M_PI;
+    act_angl_vel = act_angl_vel / 2; // 2倍になっているので補正する
     return act_angl_vel;
 }
 
