@@ -62,33 +62,33 @@ std::vector<double> get_offset(void) {
 
     std::vector<double> pos_offset;
 
-    char const* tmp1 = getenv( "SMALL_NIMBUS_ID" );
-    char const* tmp2 = getenv( "SMALL_NIMBUS_PATH" );
+    char const* tmp1 = getenv( "SMALL_SKEPTRON_ID" );
+    char const* tmp2 = getenv( "SMALL_SKEPTRON_PATH" );
     if( tmp1==NULL )
     {
-      std::cerr << "ERROR: SMALL_NIMBUS_IDが設定されていません" << std::endl;
+      std::cerr << "ERROR: SMALL_SKEPTRON_IDが設定されていません" << std::endl;
       std::exit(1);
     }
     else if( tmp2==NULL )
     {
-      std::cerr << "ERROR: SMALL_NIMBUS_PATHが設定されていません" << std::endl;
+      std::cerr << "ERROR: SMALL_SKEPTRON_PATHが設定されていません" << std::endl;
       std::exit(1);
     }
 
     else
     {
-      std::string SMALL_NIMBUS_ID = std::getenv("SMALL_NIMBUS_ID");
-      std::string SMALL_NIMBUS_PATH = std::getenv("SMALL_NIMBUS_PATH");
-      std::cerr << "SMALL_NIMBUS_ID: "<< SMALL_NIMBUS_ID << std::endl;
-      std::cerr << "SMALL_NIMBUS_PATH: "<< SMALL_NIMBUS_PATH << std::endl;
-      std::string OFFSET_FILE = SMALL_NIMBUS_PATH + "/hardware/unitree_actuator_sdk/example/offset.txt";
+      std::string SMALL_SKEPTRON_ID = std::getenv("SMALL_SKEPTRON_ID");
+      std::string SMALL_SKEPTRON_PATH = std::getenv("SMALL_SKEPTRON_PATH");
+      std::cerr << "SMALL_SKEPTRON_ID: "<< SMALL_SKEPTRON_ID << std::endl;
+      std::cerr << "SMALL_SKEPTRON_PATH: "<< SMALL_SKEPTRON_PATH << std::endl;
+      std::string OFFSET_FILE = SMALL_SKEPTRON_PATH + "/hardware/unitree_actuator_sdk/example/offset.txt";
       std::ifstream file(OFFSET_FILE);
 
-      // TODO: 現在はSMALL_NIMBUSが1号機と2号機しか存在しないことを仮定してエラー処理をしているが、これをもう少し一般的にチェックできるようにする。
+      // TODO: 現在はSMALL_SKEPTRONが1号機と2号機しか存在しないことを仮定してエラー処理をしているが、これをもう少し一般的にチェックできるようにする。
       // https://github.com/proxima-technology/small_nimbus_ws/issues/111
-      if( std::stoi(SMALL_NIMBUS_ID)!=1 && std::stoi(SMALL_NIMBUS_ID)!=2 )
+      if( std::stoi(SMALL_SKEPTRON_ID)!=1 && std::stoi(SMALL_SKEPTRON_ID)!=2 )
       {
-        std::cerr << "ERROR: SMALL_NIMBUS_ID should be 1 or 2" << std::endl;
+        std::cerr << "ERROR: SMALL_SKEPTRON_ID should be 1 or 2" << std::endl;
         std::exit(1);
       }
       std::string line;
@@ -97,7 +97,7 @@ std::vector<double> get_offset(void) {
         while (getline(file, line)) {
           std::stringstream ss(line);
           ss >> column0 >> column1 >> column2;
-          if (column0==SMALL_NIMBUS_ID){
+          if (column0==SMALL_SKEPTRON_ID){
             pos_offset.push_back(std::stod(column1));
             pos_offset.push_back(std::stod(column2));
             break;
