@@ -337,7 +337,7 @@ void simpletest(char* ifname)
                             /*指令値セット*/
                             #if (ENABLE_LEGMOTOR == 1)
                             set_mode(1, motor[i].send);
-                            set_torque(total_control, motor[i].send);
+                            set_torque(total_control / 6.33, motor[i].send);
                             // set_torque(0, motor[i].send);
                             set_speed(0, motor[i].send);
                             set_K_P(0, motor[i].send);
