@@ -298,6 +298,10 @@ void simpletest(char* ifname)
                 float tor = 0;
                 float tor2 = 0;
                 struct timespec t_st[MOTOR_NUM], t_end[MOTOR_NUM];
+                double runtime_offset_pos[MOTOR_NUM];
+                for (int j = 0; j < MOTOR_NUM; j++) {
+                    runtime_offset_pos[j] = 0.0;
+                }
 
                 /* cyclic loop */
                 for (;;) {
@@ -314,15 +318,16 @@ void simpletest(char* ifname)
 
                             double torque_control = legmotor_command_shared[TORQUE_CMD_IDX*NUM_LEGMOTOR + i];
                             // TODO: 位置制御モードの実装
-                            /*
-                            double position_control_ratio = legmotor_command_shared[POSITION_CONTROL_MODE_RATIO_IDX*NUM_LEGMOTOR + i]; // [0,1] // 0 is using torque contol, 1 is using position control.
+                            
+                            //double position_control_ratio = legmotor_command_shared[POSITION_CONTROL_MODE_RATIO_IDX*NUM_LEGMOTOR + i]; // [0,1] // 0 is using torque contol, 1 is using position control.
                             double target_pos = legmotor_command_shared[POSITION_TARGET_IDX*NUM_LEGMOTOR + i];
+                            double target_vel = legmotor_command_shared[VELOCITY_TARGET_IDX*NUM_LEGMOTOR + i];
                             double kp = legmotor_command_shared[P_GAIN_IDX*NUM_LEGMOTOR + i];
                             double kd = legmotor_command_shared[D_GAIN_IDX*NUM_LEGMOTOR + i];
-                            double ki = legmotor_command_shared[I_GAIN_IDX*NUM_LEGMOTOR + i];
-                            double position_control = - kp*(measured_pos-target_pos) - kd*measured_vel; // todo: implement I control
-                            double total_control = (1.0 - position_control_ratio) * torque_control + position_control_ratio * position_control;
-                            */
+                            //double ki = legmotor_command_shared[I_GAIN_IDX*NUM_LEGMOTOR + i];
+                            //double position_control = - kp*(measured_pos-target_pos) - kd*measured_vel; // todo: implement I control
+                            //double total_control = (1.0 - position_control_ratio) * torque_control + position_control_ratio * position_control;
+                            
                             double total_control = torque_control;
 
                             double torque_max = 23.5;
@@ -332,17 +337,18 @@ void simpletest(char* ifname)
                             if(1==i)
                             {
                               total_control = - total_control;
+                              target_pos = - target_pos; 
+                              target_vel = - target_vel;
                             }
 
                             /*指令値セット*/
                             #if (ENABLE_LEGMOTOR == 1)
                             set_mode(1, motor[i].send);
                             set_torque(total_control / 6.33, motor[i].send);
-                            // set_torque(0, motor[i].send);
-                            set_speed(0, motor[i].send);
-                            set_K_P(0, motor[i].send);
-                            set_K_W(0, motor[i].send);
-                            set_position(0, motor[i].send);
+                            set_position((target_pos - runtime_offset_pos[i]) * 6.33, motor[i].send);
+                            set_speed(target_vel * 6.33, motor[i].send);
+                            set_K_P(kp / ( 6.33 * 6.33 ), motor[i].send);
+                            set_K_W(kd / ( 6.33 * 6.33 ), motor[i].send);
                             /***********************/
                             // st_clock[i] = clock();
                             clock_gettime(CLOCK_MONOTONIC, &t_st[i]);
@@ -379,6 +385,7 @@ void simpletest(char* ifname)
                                     {
                                       while(1)
                                       {
+                                        runtime_offset_pos[cnt] = pos_offset[cnt] + runtime_offset_rotation_count[cnt]*2*M_PI/6.33;
                                         legmotor_sensor_shared[POSITION_OBS_IDX*NUM_LEGMOTOR + cnt] = pos_offset[cnt] + raw_position / 6.33 + runtime_offset_rotation_count[cnt]*2*M_PI/6.33;
                                         if(std::abs(legmotor_sensor_shared[cnt])<(-1e-6 + M_PI/6.33))
                                         {
