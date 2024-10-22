@@ -317,26 +317,18 @@ void simpletest(char* ifname)
                             motor[i].send[15] = check[i];
 
                             double torque_control = legmotor_command_shared[TORQUE_CMD_IDX*NUM_LEGMOTOR + i];
-                            // TODO: 位置制御モードの実装
-                            
-                            //double position_control_ratio = legmotor_command_shared[POSITION_CONTROL_MODE_RATIO_IDX*NUM_LEGMOTOR + i]; // [0,1] // 0 is using torque contol, 1 is using position control.
                             double target_pos = legmotor_command_shared[POSITION_TARGET_IDX*NUM_LEGMOTOR + i];
                             double target_vel = legmotor_command_shared[VELOCITY_TARGET_IDX*NUM_LEGMOTOR + i];
                             double kp = legmotor_command_shared[P_GAIN_IDX*NUM_LEGMOTOR + i];
                             double kd = legmotor_command_shared[D_GAIN_IDX*NUM_LEGMOTOR + i];
-                            //double ki = legmotor_command_shared[I_GAIN_IDX*NUM_LEGMOTOR + i];
-                            //double position_control = - kp*(measured_pos-target_pos) - kd*measured_vel; // todo: implement I control
-                            //double total_control = (1.0 - position_control_ratio) * torque_control + position_control_ratio * position_control;
                             
-                            double total_control = torque_control;
-
                             double torque_max = 23.5;
-                            total_control = std::max(-torque_max, std::min(torque_max, total_control));
+                            torque_control = std::max(-torque_max, std::min(torque_max, torque_control));
 
                             // reverse just before send
                             if(1==i)
                             {
-                              total_control = - total_control;
+                              torque_control = - torque_control;
                               target_pos = - target_pos; 
                               target_vel = - target_vel;
                             }
@@ -344,7 +336,7 @@ void simpletest(char* ifname)
                             /*指令値セット*/
                             #if (ENABLE_LEGMOTOR == 1)
                             set_mode(1, motor[i].send);
-                            set_torque(total_control / 6.33, motor[i].send);
+                            set_torque(torque_control / 6.33, motor[i].send);
                             set_position((target_pos - runtime_offset_pos[i]) * 6.33, motor[i].send);
                             set_speed(target_vel * 6.33, motor[i].send);
                             set_K_P(kp / ( 6.33 * 6.33 ), motor[i].send);
