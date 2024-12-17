@@ -312,7 +312,7 @@ void simpletest(char* ifname)
 				  single_gomotor_sensor_shared[TEMPERATURE_OBS_IDX*MOTOR_NUM + cnt] = get_temp(motor[cnt].recv);
 
 
-				  /*
+				  
 				  {
                                     printf("\033[%d;1H", cnt + monitoring_print_cursor);
 
@@ -324,7 +324,6 @@ void simpletest(char* ifname)
 				    printf("\033[%d;1H", cnt + monitoring_print_cursor + MOTOR_NUM);
 				    printf("\033[0K");
 				    }
-				  */
                                     time_count[cnt][time_index[cnt]] = (double)(t_end[cnt].tv_nsec - t_st[cnt].tv_nsec) / 1000000;
                                     if (time_count[cnt][time_index[cnt]] < 0) {
                                         time_count[cnt][time_index[cnt]] += 1000;
@@ -347,14 +346,17 @@ void simpletest(char* ifname)
                         } // End of for (int cnt = 0; cnt < MOTOR_NUM; cnt++)
                         proc_comm_sensor->write_stdvec(single_gomotor_sensor_shared);
 
-                        /*計測時間表示*/
-
-                        for (int cnt = 0; cnt < MOTOR_NUM; cnt++) {
+                        //計測時間表示
+                        /*
+                        {
+                          for (int cnt = 0; cnt < MOTOR_NUM; cnt++) {
                             printf("\033[%d;1H", MOTOR_NUM + monitoring_print_cursor + cnt + 5);
                             printf("\033[0K");
                             printf("id %d: time %fms ,", cnt, time_count[cnt][now_time[cnt]]);
                             printf("ave %8.6fms ,var %8.6fms ,max %8.6fms ,min %8.6fms ,over ratio(%5.2lfkHz) %7.4f %% ,over ratio(%5.2lfkHz) %7.4f %%\n", ave_time[cnt], var_time[cnt], max_time[cnt], min_time[cnt], 1.0 / (float)TH, (float)over_num[cnt] / (float)NUM * 100.0, 1.0 / (float)TH2, (float)over_num2[cnt] / (float)NUM * 100.0);
+                          }
                         }
+                        */
                         
                         needlf = TRUE;
                     } // End of if (wkc >= expectedWKC)
