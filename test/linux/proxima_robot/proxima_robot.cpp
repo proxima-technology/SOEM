@@ -399,6 +399,7 @@ void simpletest(char* ifname)
                                     legmotor_sensor_shared[VELOCITY_OBS_IDX*NUM_LEGMOTOR + cnt] = get_angular_vel(motor[cnt].recv) / 6.33;
                                     legmotor_sensor_shared[TORQUE_OBS_IDX*NUM_LEGMOTOR + cnt] = get_torque(motor[cnt].recv) * 6.33;
                                     legmotor_sensor_shared[TEMPERATURE_OBS_IDX*NUM_LEGMOTOR + cnt] = get_temp(motor[cnt].recv);
+                                    legmotor_sensor_shared[STATUS_OBS_IDX*NUM_LEGMOTOR + cnt] = READY_FOR_ACTUATION_STATUS_IDX;
                                     // reverse just after read
                                     if(1==cnt)
                                     {
@@ -581,6 +582,12 @@ void dry_run_legmotor()
   ProcComm *proc_comm_command;
   proc_comm_sensor = new ProcComm(filename_data_legmotor_sensor, id_data_legmotor_sensor, num_data_legmotor_sensor, is_host);
   proc_comm_command = new ProcComm(filename_data_legmotor_command, id_data_legmotor_command, num_data_legmotor_command, is_host);
+
+  for(int cnt=0; cnt<MOTOR_NUM; cnt++)
+  {
+    legmotor_sensor_shared[STATUS_OBS_IDX*NUM_LEGMOTOR + cnt] = DISABLED_BY_CONFIG_STATUS_IDX;
+  }
+  proc_comm_sensor->write_stdvec(legmotor_sensor_shared);
 
   while(keepRunning)
   {
