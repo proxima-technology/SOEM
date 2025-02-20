@@ -81,7 +81,7 @@ std::vector<double> get_offset(void) {
       std::string SMALL_SKEPTRON_PATH = std::getenv("SMALL_SKEPTRON_PATH");
       std::cerr << "SMALL_SKEPTRON_ID: "<< SMALL_SKEPTRON_ID << std::endl;
       std::cerr << "SMALL_SKEPTRON_PATH: "<< SMALL_SKEPTRON_PATH << std::endl;
-      std::string OFFSET_FILE = SMALL_SKEPTRON_PATH + "/hardware/unitree_actuator_sdk/example/offset.txt";
+      std::string OFFSET_FILE = SMALL_SKEPTRON_PATH + "/hardware/offset.txt";
       std::ifstream file(OFFSET_FILE);
 
       // TODO: 現在はSMALL_SKEPTRONが1号機と2号機しか存在しないことを仮定してエラー処理をしているが、これをもう少し一般的にチェックできるようにする。
