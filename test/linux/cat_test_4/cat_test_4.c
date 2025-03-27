@@ -73,7 +73,7 @@ void set_init()
     }
     // set_id(0, motor[0].send);
     // set_id(0, motor[1].send);
-    // set_id(1, motor[2].send);0
+    // set_id(0, motor[2].send);
     // set_id(0, motor[3].send);
     set_id(0, motor[4].send);
     // set_id(1, motor[5].send);
@@ -268,7 +268,6 @@ void simpletest(char* ifname)
                         for (int cnt = 0; cnt < MOTOR_NUM; cnt++) {
                             // if (check[cnt] == *(motor[cnt].recv + 14)) {
                             if (*(motor[cnt].recv + 14)) {
-                                // if (true) {
                                 clock_gettime(CLOCK_MONOTONIC, &t_end[cnt]);
                                 recv_fin[cnt] = TRUE;
                                 if (check[cnt] == 0) {
@@ -300,11 +299,12 @@ void simpletest(char* ifname)
                                     if (time_index[cnt] == NUM) {
                                         time_index[cnt] = 0;
                                         mesure(time_count[cnt], &(ave_time[cnt]), &(var_time[cnt]), &(max_time[cnt]), &(over_num[cnt]), &over_num2[cnt], &min_time[cnt]);
+                                        /*フィードバック値表示*/
                                         printf("\033[%d;1H\033[0K", cnt + 12);
                                         printf("id: %2d, torque: %10.6lf(Nm), anglevel: %12.6lf(rad/s), angle: %12.6lf(rad), temp: %3d℃ , error: %s\n", cnt, get_torque(motor[cnt].recv), get_angular_vel(motor[cnt].recv), get_position(motor[cnt].recv), get_temp(motor[cnt].recv), check_err(motor[cnt].recv, message));
-                                        // printf("\033[%d;1H\033[0K", MOTOR_NUM + 12 + cnt);
+                                        /*計測時間表示*/
                                         printf("\033[%d;1H\033[0K", MOTOR_NUM + 15 + cnt);
-                                        printf("ave %8.6fms ,var %8.6fms ,max %8.6fms ,min %8.6fms ,over ratio(%5.2lfkHz) %7.4f %% ,over ratio(%5.2lfkHz) %7.4f %%\n", ave_time[cnt], var_time[cnt], max_time[cnt], min_time[cnt], 1.0 / (float)TH, (float)over_num[cnt] / (float)NUM * 100.0, 1.0 / (float)TH2, (float)over_num2[cnt] / (float)NUM * 100.0);
+                                        printf("id: %2d, ave %8.6fms ,var %8.6fms ,max %8.6fms ,min %8.6fms ,over ratio(%5.2lfkHz) %7.4f %% ,over ratio(%5.2lfkHz) %7.4f %%\n", cnt, ave_time[cnt], var_time[cnt], max_time[cnt], min_time[cnt], 1.0 / (float)TH, (float)over_num[cnt] / (float)NUM * 100.0, 1.0 / (float)TH2, (float)over_num2[cnt] / (float)NUM * 100.0);
                                     }
                                 } else {
                                     printf("\033[%d;1H", MOTOR_NUM + 12 + cnt);
@@ -314,16 +314,7 @@ void simpletest(char* ifname)
                                 }
                             }
                         }
-
-                        /*計測時間表示*/
-                        // for (int cnt = 0; cnt < MOTOR_NUM; cnt++) {
-                        //     printf("\033[%d;1H", MOTOR_NUM + 15 + cnt);
-                        //     printf("\033[0K");
-                        //     printf("id %d: time %fms ,", cnt, time_count[cnt][now_time[cnt]]);
-                        //     printf("ave %8.6fms ,var %8.6fms ,max %8.6fms ,min %8.6fms ,over ratio(%5.2lfkHz) %7.4f %% ,over ratio(%5.2lfkHz) %7.4f %%\n", ave_time[cnt], var_time[cnt], max_time[cnt], min_time[cnt], 1.0 / (float)TH, (float)over_num[cnt] / (float)NUM * 100.0, 1.0 / (float)TH2, (float)over_num2[cnt] / (float)NUM * 100.0);
-                        // }
                         needlf = TRUE;
-                        // printf("\033[26;1H\033[0K");
 
                     } else {
                         static int i = 0;
