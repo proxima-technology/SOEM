@@ -28,7 +28,7 @@
 #define EC_TIMEOUTMON 500
 #define NUM 1000
 #define TH 0.5
-#define TH2 0.25
+#define TH2 0.333333
 #define MOTOR_NUM 6
 
 char IOmap[4096];
@@ -72,10 +72,10 @@ void set_init()
         set_id(i, motor[i].send);
     }
     // set_id(0, motor[0].send);
-    // set_id(0, motor[1].send);
+    set_id(0, motor[1].send);
     // set_id(0, motor[2].send);
     // set_id(0, motor[3].send);
-    set_id(0, motor[4].send);
+    set_id(1, motor[4].send);
     // set_id(1, motor[5].send);
 
     /*指令値をすべて0に設定*/
@@ -132,7 +132,6 @@ void simpletest(char* ifname)
     needlf = FALSE;
     inOP = FALSE;
 
-    // clock_t st_clock[MOTOR_NUM] = {0}, end_clock[MOTOR_NUM] = {0};
     uint8 check[MOTOR_NUM];
     bool recv_fin[MOTOR_NUM];
     for (int i = 0; i < MOTOR_NUM; i++) {
@@ -216,32 +215,31 @@ void simpletest(char* ifname)
                 for (uint i = 0; i < MOTOR_NUM; i++) {
                     motor[i].recv = get_recv_pointer(i);
                 }
-                clock_t cyc_f = 0, cyc_f_pre = 0;
+                // clock_t cyc_f = 0, cyc_f_pre = 0;
                 float tor = 0;
                 float tor2 = 0;
                 struct timespec t_st[MOTOR_NUM], t_end[MOTOR_NUM];
+                volatile bool first_come[MOTOR_NUM] = {false};
 
                 /* cyclic loop */
                 for (;;) {
-                    cyc_f = clock();
-                    // printf("\033[%d;1H", 30);
-                    double elapsedtime = (double)(cyc_f - cyc_f_pre) / CLOCKS_PER_SEC;
-                    // printf("%lf", elapsedtime);
-                    if (elapsedtime > 4.0) {
-                        cyc_f_pre = cyc_f;
-                        tor = 0;
-                        tor2 = 0;
-                    } else if (elapsedtime > 2.0) {
-                        // cyc_f_pre = cyc_f;
-                        tor = 0.048;
-                        tor2 = -0.048;
-                        tor = 0;
-                        tor2 = 0;
-                    }
+                    // cyc_f = clock();
+                    // double elapsedtime = (double)(cyc_f - cyc_f_pre) / CLOCKS_PER_SEC;
+                    // if (elapsedtime > 4.0) {
+                    //     cyc_f_pre = cyc_f;
+                    //     tor = 0;
+                    //     tor2 = 0;
+                    // } else if (elapsedtime > 2.0) {
+                    //     // cyc_f_pre = cyc_f;
+                    //     tor = 0.048;
+                    //     tor2 = -0.048;
+                    //     tor = 0;
+                    //     tor2 = 0;
+                    // }
                     for (int i = 0; i < MOTOR_NUM; i++) {
                         if (recv_fin[i]) {
                             recv_fin[i] = FALSE;
-                            motor[i].send[15] = check[i];
+                            // motor[i].send[15] = check[i];
                             /*指令値セット*/
                             set_mode(1, motor[i].send);
                             if (i == 1) {
@@ -266,15 +264,11 @@ void simpletest(char* ifname)
                     wkc = ec_receive_processdata(EC_TIMEOUTRET);
                     if (wkc >= expectedWKC) {
                         for (int cnt = 0; cnt < MOTOR_NUM; cnt++) {
-                            // if (check[cnt] == *(motor[cnt].recv + 14)) {
-                            if (*(motor[cnt].recv + 14)) {
+                            // if (*(motor[cnt].recv + 14)) {
+                            if (*(motor[cnt].recv + 14) != check[cnt]) {
+                                check[cnt] = *(motor[cnt].recv + 14);
                                 clock_gettime(CLOCK_MONOTONIC, &t_end[cnt]);
                                 recv_fin[cnt] = TRUE;
-                                if (check[cnt] == 0) {
-                                    check[cnt] = 255;
-                                } else {
-                                    check[cnt]--;
-                                }
                                 /*
                                     受信データ表示
                                     id      :モータナンバー(unitreeのidとは違うもの)
@@ -284,10 +278,9 @@ void simpletest(char* ifname)
                                     temp    :温度
                                 */
                                 if (check_CRC(motor[cnt].recv)) {  // CRCチェック
-                                    // printf("\033[%d;1H", cnt + 12);
                                     char message[20];
-                                    // printf("\033[0K");
                                     /*フィードバック値表示*/
+                                    // printf("\033[%d;1H\033[0K", cnt + 12);
                                     // printf("id: %2d, torque: %10.6lf(Nm), anglevel: %12.6lf(rad/s), angle: %12.6lf(rad), temp: %3d℃ , error: %s\n", cnt, get_torque(motor[cnt].recv), get_angular_vel(motor[cnt].recv), get_position(motor[cnt].recv), get_temp(motor[cnt].recv), check_err(motor[cnt].recv, message));
                                     // printf("\033[%d;1H\033[0K", MOTOR_NUM + 12 + cnt);
                                     time_count[cnt][time_index[cnt]] = (double)(t_end[cnt].tv_nsec - t_st[cnt].tv_nsec) / 1000000;
@@ -304,13 +297,15 @@ void simpletest(char* ifname)
                                         printf("id: %2d, torque: %10.6lf(Nm), anglevel: %12.6lf(rad/s), angle: %12.6lf(rad), temp: %3d℃ , error: %s\n", cnt, get_torque(motor[cnt].recv), get_angular_vel(motor[cnt].recv), get_position(motor[cnt].recv), get_temp(motor[cnt].recv), check_err(motor[cnt].recv, message));
                                         /*計測時間表示*/
                                         printf("\033[%d;1H\033[0K", MOTOR_NUM + 15 + cnt);
-                                        printf("id: %2d, ave %8.6fms ,var %8.6fms ,max %8.6fms ,min %8.6fms ,over ratio(%5.2lfkHz) %7.4f %% ,over ratio(%5.2lfkHz) %7.4f %%\n", cnt, ave_time[cnt], var_time[cnt], max_time[cnt], min_time[cnt], 1.0 / (float)TH, (float)over_num[cnt] / (float)NUM * 100.0, 1.0 / (float)TH2, (float)over_num2[cnt] / (float)NUM * 100.0);
+                                        printf("id: %2d, ave %8.6fms ,var %8.6fms ,max %8.6fms ,min %8.6fms ,over ratio(%4.1lfkHz) %4.1f %% ,over ratio(%4.1lfkHz) %4.1f %%\n", cnt, ave_time[cnt], var_time[cnt], max_time[cnt], min_time[cnt], 1.0 / (float)TH, (float)over_num[cnt] / (float)NUM * 100.0, 1.0 / (float)TH2, (float)over_num2[cnt] / (float)NUM * 100.0);
                                     }
                                 } else {
-                                    printf("\033[%d;1H", MOTOR_NUM + 12 + cnt);
-                                    printf("id %d CRC_error", cnt);
-                                    printf("\a");
-                                    check[cnt]++;
+                                    if (first_come[cnt]) {
+                                        printf("\033[%d;1H\033[0K", 12 + cnt);
+                                        printf("id %d CRC_error", cnt);
+                                    } else {
+                                        first_come[cnt] = true;
+                                    }
                                 }
                             }
                         }
