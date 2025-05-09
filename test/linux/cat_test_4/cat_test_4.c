@@ -27,10 +27,9 @@
 
 #define EC_TIMEOUTMON 500
 #define NUM 1000
-#define TH 2.0
-// #define TH2 0.16666666667
-#define TH2 1.0
-#define MOTOR_NUM 3
+#define TH 0.5
+#define TH2 0.333333
+#define MOTOR_NUM 6
 
 char IOmap[4096];
 OSAL_THREAD_HANDLE thread1;
@@ -69,10 +68,20 @@ void set_output(uint16 slave_no, uint8 module_index, uint8* value)
 void set_init()
 {
     /*RS485通信で使うidの変更*/
-    set_id(0, motor[0].send);
-    set_id(1, motor[1].send);
-    set_id(0, motor[2].send);
-    // set_id(0, motor[3].send);
+    for (int i = 0; i < MOTOR_NUM; i++) {
+        set_id(i, motor[i].send);
+    }
+
+    // 手動で上書きする場合
+    if(0)
+    {
+        // set_id(0, motor[0].send);
+        set_id(0, motor[1].send);
+        // set_id(0, motor[2].send);
+        // set_id(0, motor[3].send);
+        set_id(1, motor[4].send);
+        // set_id(1, motor[5].send);
+    }
 
     /*指令値をすべて0に設定*/
     for (int i = 0; i < MOTOR_NUM; i++) {
@@ -128,7 +137,6 @@ void simpletest(char* ifname)
     needlf = FALSE;
     inOP = FALSE;
 
-    // clock_t st_clock[MOTOR_NUM] = {0}, end_clock[MOTOR_NUM] = {0};
     uint8 check[MOTOR_NUM];
     bool recv_fin[MOTOR_NUM];
     for (int i = 0; i < MOTOR_NUM; i++) {
@@ -137,7 +145,7 @@ void simpletest(char* ifname)
     }
     double time_count[MOTOR_NUM][NUM];
     int time_index[MOTOR_NUM] = {0};
-    int now_time[MOTOR_NUM] = {0};
+    // int now_time[MOTOR_NUM] = {0};
     double max_time[MOTOR_NUM] = {0};
     double min_time[MOTOR_NUM] = {0};
     double ave_time[MOTOR_NUM] = {0};
@@ -155,8 +163,6 @@ void simpletest(char* ifname)
 
 
         if (ec_config_init(FALSE) > 0) {
-            //FILE* fp;
-            // fp = fopen("data.csv", "w");
             printf("%d slaves found and configured.\n", ec_slavecount);
 
             if (forceByteAlignment) {
@@ -174,13 +180,13 @@ void simpletest(char* ifname)
             oloop = ec_slave[0].Obytes;
             if ((oloop == 0) && (ec_slave[0].Obits > 0))
                 oloop = 1;
-            if (oloop > 64)
-                oloop = 64;
+            if (oloop > 128)
+                oloop = 128;
             iloop = ec_slave[0].Ibytes;
             if ((iloop == 0) && (ec_slave[0].Ibits > 0))
                 iloop = 1;
-            if (iloop > 64)
-                iloop = 64;
+            if (iloop > 128)
+                iloop = 128;
 
             printf("segments : %d : %d %d %d %d\n", ec_group[0].nsegments, ec_group[0].IOsegment[0], ec_group[0].IOsegment[1], ec_group[0].IOsegment[2], ec_group[0].IOsegment[3]);
 
@@ -202,11 +208,7 @@ void simpletest(char* ifname)
                 ec_statecheck(0, EC_STATE_OPERATIONAL, 50000);
             } while (chk-- && (ec_slave[0].state != EC_STATE_OPERATIONAL));
             if (ec_slave[0].state == EC_STATE_OPERATIONAL) {
-                // printf("\nfdsjfakl\n");
-                // printf("\a");
                 printf("Operational state reached for all slaves.\n");
-                printf("hello");
-                // printf("\a");
                 printf("\033[10;1H");
                 printf("motor INFO");
                 printf("\033[%d;1H", MOTOR_NUM + 13);
@@ -218,32 +220,31 @@ void simpletest(char* ifname)
                 for (uint i = 0; i < MOTOR_NUM; i++) {
                     motor[i].recv = get_recv_pointer(i);
                 }
-                clock_t cyc_f = 0, cyc_f_pre = 0;
-                float tor = 0;
-                float tor2 = 0;
+                float tor = 0.0;
+                float tor2 = 0.0;
+                // clock_t cyc_f = 0, cyc_f_pre = 0;
                 struct timespec t_st[MOTOR_NUM], t_end[MOTOR_NUM];
+                volatile bool first_come[MOTOR_NUM] = {false};
 
                 /* cyclic loop */
                 for (;;) {
-                    cyc_f = clock();
-                    // printf("\033[%d;1H", 30);
-                    double elapsedtime = (double)(cyc_f - cyc_f_pre) / CLOCKS_PER_SEC;
-                    // printf("%lf", elapsedtime);
-                    if (elapsedtime > 4.0) {
-                        cyc_f_pre = cyc_f;
-                        tor = 0;
-                        tor2 = 0;
-                    } else if (elapsedtime > 2.0) {
-                        // cyc_f_pre = cyc_f;
-                        tor = 0.048;
-                        tor2 = -0.048;
-                        tor = 0;
-                        tor2 = 0;
-                    }
+                    // cyc_f = clock();
+                    // double elapsedtime = (double)(cyc_f - cyc_f_pre) / CLOCKS_PER_SEC;
+                    // if (elapsedtime > 4.0) {
+                    //     cyc_f_pre = cyc_f;
+                    //     tor = 0;
+                    //     tor2 = 0;
+                    // } else if (elapsedtime > 2.0) {
+                    //     // cyc_f_pre = cyc_f;
+                    //     tor = 0.048;
+                    //     tor2 = -0.048;
+                    //     tor = 0;
+                    //     tor2 = 0;
+                    // }
                     for (int i = 0; i < MOTOR_NUM; i++) {
                         if (recv_fin[i]) {
                             recv_fin[i] = FALSE;
-                            motor[i].send[15] = check[i];
+                            // motor[i].send[15] = check[i];
                             /*指令値セット*/
                             set_mode(1, motor[i].send);
                             if (i == 1) {
@@ -257,7 +258,7 @@ void simpletest(char* ifname)
                             set_K_W(0, motor[i].send);
                             set_position(0, motor[i].send);
                             /***********************/
-                            // st_clock[i] = clock();
+
                             clock_gettime(CLOCK_MONOTONIC, &t_st[i]);
                             set_output(1, i, motor[i].send);
                         }
@@ -267,16 +268,10 @@ void simpletest(char* ifname)
                     wkc = ec_receive_processdata(EC_TIMEOUTRET);
                     if (wkc >= expectedWKC) {
                         for (int cnt = 0; cnt < MOTOR_NUM; cnt++) {
-                            if (check[cnt] == *(motor[cnt].recv + 14)) {
-                                // if (true) {
-                                // end_clock[cnt] = clock();
+                            if (*(motor[cnt].recv + 14) != check[cnt]) {
+                                check[cnt] = *(motor[cnt].recv + 14);
                                 clock_gettime(CLOCK_MONOTONIC, &t_end[cnt]);
                                 recv_fin[cnt] = TRUE;
-                                if (check[cnt] == 0) {
-                                    check[cnt] = 255;
-                                } else {
-                                    check[cnt]--;
-                                }
                                 /*
                                     受信データ表示
                                     id      :モータナンバー(unitreeのidとは違うもの)
@@ -286,48 +281,43 @@ void simpletest(char* ifname)
                                     temp    :温度
                                 */
                                 if (check_CRC(motor[cnt].recv)) {  // CRCチェック
-                                    printf("\033[%d;1H", cnt + 12);
                                     char message[20];
-                                    printf("\033[0K");
-                                    /*フィードバック値表示*/
-                                    printf("id: %2d, torque: %10.6lf(Nm), anglevel: %12.6lf(rad/s), angle: %12.6lf(rad), temp: %3d℃ , error: %s\n", cnt, get_torque(motor[cnt].recv), get_angular_vel(motor[cnt].recv), get_position(motor[cnt].recv), get_temp(motor[cnt].recv), check_err(motor[cnt].recv, message));
-                                    printf("\033[%d;1H\033[0K", MOTOR_NUM + 12 + cnt);
-                                    // time_count[cnt][time_index[cnt]] = (double)(end_clock[cnt] - st_clock[cnt]) / CLOCKS_PER_SEC * 1000;
                                     time_count[cnt][time_index[cnt]] = (double)(t_end[cnt].tv_nsec - t_st[cnt].tv_nsec) / 1000000;
                                     if (time_count[cnt][time_index[cnt]] < 0) {
                                         time_count[cnt][time_index[cnt]] += 1000;
                                     }
-                                    now_time[cnt] = time_index[cnt];
+                                    // now_time[cnt] = time_index[cnt];
                                     time_index[cnt]++;
                                     if (time_index[cnt] == NUM) {
                                         time_index[cnt] = 0;
                                         mesure(time_count[cnt], &(ave_time[cnt]), &(var_time[cnt]), &(max_time[cnt]), &(over_num[cnt]), &over_num2[cnt], &min_time[cnt]);
+                                        /*フィードバック値表示*/
+                                        printf("\033[%d;1H\033[0K", cnt + 12);
+                                        printf("id: %2d, torque: %10.6lf(Nm), anglevel: %12.6lf(rad/s), angle: %12.6lf(rad), temp: %3d℃ , error: %s\n", cnt, get_torque(motor[cnt].recv), get_angular_vel(motor[cnt].recv), get_position(motor[cnt].recv), get_temp(motor[cnt].recv), check_err(motor[cnt].recv, message));
+                                        /*計測時間表示*/
+                                        printf("\033[%d;1H\033[0K", MOTOR_NUM + 15 + cnt);
+                                        printf("id: %2d, ave %8.6fms ,var %8.6fms ,max %8.6fms ,min %8.6fms ,over ratio(%4.1lfkHz) %4.1f %% ,over ratio(%4.1lfkHz) %4.1f %%\n", cnt, ave_time[cnt], var_time[cnt], max_time[cnt], min_time[cnt], 1.0 / (float)TH, (float)over_num[cnt] / (float)NUM * 100.0, 1.0 / (float)TH2, (float)over_num2[cnt] / (float)NUM * 100.0);
                                     }
                                 } else {
-                                    printf("\033[%d;1H", MOTOR_NUM + 12 + cnt);
-                                    printf("id %d CRC_error", cnt);
-                                    printf("\a");
-                                    check[cnt]++;
+                                    if (first_come[cnt]) {
+                                        printf("\033[%d;1H\033[0K", 12 + cnt);
+                                        printf("id %d CRC_error", cnt);
+                                    } else {
+                                        first_come[cnt] = true;
+                                    }
                                 }
                             }
                         }
-
-                        /*計測時間表示*/
-                        for (int cnt = 0; cnt < MOTOR_NUM; cnt++) {
-                            printf("\033[%d;1H", MOTOR_NUM + 15 + cnt);
-                            printf("\033[0K");
-                            printf("id %d: time %fms ,", cnt, time_count[cnt][now_time[cnt]]);
-                            // printf("ave %8.6fms ,var %8.6fms ,max %8.6fms ,over_num(4kHz) %2d ,over ratio(4kHz) %7.4f %% ,over_num(6kHz) %2d ,over ratio(6kHz) %7.4f %%\n", ave_time[cnt], var_time[cnt], max_time[cnt], over_num[cnt], (float)over_num[cnt] / (float)NUM * 100.0, over_num2[cnt], (float)over_num2[cnt] / (float)NUM * 100);
-                            printf("ave %8.6fms ,var %8.6fms ,max %8.6fms ,min %8.6fms ,over ratio(%5.2lfkHz) %7.4f %% ,over ratio(%5.2lfkHz) %7.4f %%\n", ave_time[cnt], var_time[cnt], max_time[cnt], min_time[cnt], 1.0 / (float)TH, (float)over_num[cnt] / (float)NUM * 100.0, 1.0 / (float)TH2, (float)over_num2[cnt] / (float)NUM * 100.0);
-                        }
                         needlf = TRUE;
                     } else {
-                        printf("wkc error\n");
+                        static int i = 0;
+                        printf("\033[40;1H%2d ", wkc);
+                        printf("wkc error %3d\n", i);
+                        i++;
+                        if (i > 256) {
+                            i = 0;
+                        }
                     }
-                    // osal_usleep(1000);
-                    // osal_usleep(70);
-                    // osal_usleep(50);
-                    // osal_usleep(30);
                 }
                 inOP = FALSE;
             } else {
