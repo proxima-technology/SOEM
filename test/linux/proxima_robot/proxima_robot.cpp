@@ -31,9 +31,8 @@
 
 #define EC_TIMEOUTMON 500
 #define NUM 1000
-#define TH 2.0
-// #define TH2 0.16666666667
-#define TH2 1.0
+#define TH 0.5
+#define TH2 0.333333
 #define MOTOR_NUM 2
 
 char IOmap[4096];
@@ -141,8 +140,6 @@ void set_init()
     /*RS485通信で使うidの変更*/
     set_id(0, motor[0].send);
     set_id(1, motor[1].send);
-    set_id(0, motor[2].send);
-    // set_id(0, motor[3].send);
 
     /*指令値をすべて0に設定*/
     for (int i = 0; i < MOTOR_NUM; i++) {
@@ -207,7 +204,7 @@ void simpletest(char* ifname)
     }
     double time_count[MOTOR_NUM][NUM];
     int time_index[MOTOR_NUM] = {0};
-    int now_time[MOTOR_NUM] = {0};
+    // int now_time[MOTOR_NUM] = {0};
     double max_time[MOTOR_NUM] = {0};
     double min_time[MOTOR_NUM] = {0};
     double ave_time[MOTOR_NUM] = {0};
@@ -250,13 +247,13 @@ void simpletest(char* ifname)
             oloop = ec_slave[0].Obytes;
             if ((oloop == 0) && (ec_slave[0].Obits > 0))
                 oloop = 1;
-            if (oloop > 64)
-                oloop = 64;
+            if (oloop > 128)
+                oloop = 128;
             iloop = ec_slave[0].Ibytes;
             if ((iloop == 0) && (ec_slave[0].Ibits > 0))
                 iloop = 1;
-            if (iloop > 64)
-                iloop = 64;
+            if (iloop > 128)
+                iloop = 128;
 
             printf("segments : %d : %d %d %d %d\n", ec_group[0].nsegments, ec_group[0].IOsegment[0], ec_group[0].IOsegment[1], ec_group[0].IOsegment[2], ec_group[0].IOsegment[3]);
 
@@ -278,11 +275,7 @@ void simpletest(char* ifname)
                 ec_statecheck(0, EC_STATE_OPERATIONAL, 50000);
             };
             if (ec_slave[0].state == EC_STATE_OPERATIONAL) {
-                // printf("\nfdsjfakl\n");
-                // printf("\a");
                 printf("Operational state reached for all slaves.\n");
-                printf("hello");
-                // printf("\a");
                 printf("\033[10;1H");
                 printf("motor INFO");
                 printf("\033[%d;1H", MOTOR_NUM + 13);
@@ -294,10 +287,8 @@ void simpletest(char* ifname)
                 for (uint i = 0; i < MOTOR_NUM; i++) {
                     motor[i].recv = get_recv_pointer(i);
                 }
-                clock_t cyc_f = 0, cyc_f_pre = 0;
-                float tor = 0;
-                float tor2 = 0;
                 struct timespec t_st[MOTOR_NUM], t_end[MOTOR_NUM];
+                volatile bool first_come[MOTOR_NUM] = {false};
                 double runtime_offset_pos[MOTOR_NUM];
                 for (int j = 0; j < MOTOR_NUM; j++) {
                     runtime_offset_pos[j] = 0.0;
@@ -305,9 +296,6 @@ void simpletest(char* ifname)
 
                 /* cyclic loop */
                 for (;;) {
-                    cyc_f = clock();
-                    // printf("\033[%d;1H", 30);
-                    double elapsedtime = (double)(cyc_f - cyc_f_pre) / CLOCKS_PER_SEC;
 
                     legmotor_command_shared = proc_comm_command->read_stdvec();
 
@@ -353,16 +341,11 @@ void simpletest(char* ifname)
                     wkc = ec_receive_processdata(EC_TIMEOUTRET);
                     if (wkc >= expectedWKC) {
                         for (int cnt = 0; cnt < MOTOR_NUM; cnt++) {
-                            if (check[cnt] == *(motor[cnt].recv + 14)) {
-                                // if (true) {
-                                // end_clock[cnt] = clock();
+                            if (*(motor[cnt].recv + 14) != check[cnt]) {
+                                check[cnt] = *(motor[cnt].recv + 14);
+
                                 clock_gettime(CLOCK_MONOTONIC, &t_end[cnt]);
                                 recv_fin[cnt] = TRUE;
-                                if (check[cnt] == 0) {
-                                    check[cnt] = 255;
-                                } else {
-                                    check[cnt]--;
-                                }
                                 /* 受信データ表示
                                     id      :モータナンバー(unitreeのidとは違うもの)
                                     torque  :トルク
@@ -372,7 +355,6 @@ void simpletest(char* ifname)
                                 */
                                 if (check_CRC(motor[cnt].recv)) {  // CRCチェック
                                     double raw_position = get_position(motor[cnt].recv);
-                                    // pos_offset[cnt] = 0.0; // only for debug, to be deleted
                                     if(need_initialize_runtime_offset_rotation_count[cnt])
                                     {
                                       while(1)
@@ -414,8 +396,9 @@ void simpletest(char* ifname)
                                     printf("\033[0K");
                                     // TODO: いい感じのprint文を実装（unitree_sdkの方も参考に）
                                     /*フィードバック値表示*/
-                                    printf("id: %2d, angle: %12.6lf(rad), anglevel: %12.6lf(rad/s), torque: %10.6lf(Nm), temp: %3f℃ , error: %s\n", cnt,
-                                      // get_position(motor[cnt].recv), get_angular_vel(motor[cnt].recv), get_torque(motor[cnt].recv), get_temp(motor[cnt].recv),
+                                    // printf("id: %2d, angle: %12.6lf(rad), anglevel: %12.6lf(rad/s), torque: %10.6lf(Nm), temp: %3f℃ , error: %s\n", cnt,
+                                    printf("id: %2d, pos: %+3.4lf, vel: %+3.2lf, trq: %+3.2lf, tmp: %+3.1, err: %s\n", cnt,
+                                        // get_position(motor[cnt].recv), get_angular_vel(motor[cnt].recv), get_torque(motor[cnt].recv), get_temp(motor[cnt].recv),
                                       legmotor_sensor_shared[POSITION_OBS_IDX*NUM_LEGMOTOR + cnt], legmotor_sensor_shared[VELOCITY_OBS_IDX*NUM_LEGMOTOR + cnt], legmotor_sensor_shared[TORQUE_OBS_IDX*NUM_LEGMOTOR + cnt], legmotor_sensor_shared[TEMPERATURE_OBS_IDX*NUM_LEGMOTOR + cnt],
                                       check_err(motor[cnt].recv, message));
                                     printf("\033[%d;1H\033[0K", MOTOR_NUM + 12 + cnt);
@@ -423,7 +406,7 @@ void simpletest(char* ifname)
                                     if (time_count[cnt][time_index[cnt]] < 0) {
                                         time_count[cnt][time_index[cnt]] += 1000;
                                     }
-                                    now_time[cnt] = time_index[cnt];
+                                    // now_time[cnt] = time_index[cnt];
                                     time_index[cnt]++;
                                     if (time_index[cnt] == NUM) {
                                         time_index[cnt] = 0;
@@ -432,10 +415,13 @@ void simpletest(char* ifname)
                                 }
                                 else
                                 {
-                                    printf("\033[%d;1H", MOTOR_NUM + 12 + cnt);
-                                    printf("id %d CRC_error", cnt);
-                                    printf("\a");
-                                    check[cnt]++;
+                                    if (first_come[cnt]) {
+                                        printf("\033[%d;1H\033[0K", 12 + cnt);
+                                        printf("id %d CRC_error", cnt);
+                                    }
+                                    else {
+                                        first_come[cnt] = true;
+                                    }
                                 }
                             }
                         } // End of for (int cnt = 0; cnt < MOTOR_NUM; cnt++)
@@ -454,7 +440,13 @@ void simpletest(char* ifname)
                     } // End of if (wkc >= expectedWKC)
                     else
                     {
-                        printf("wkc error\n");
+                        static int i_wkc_error = 0;
+                        printf("\033[40;1H%2d ", wkc);
+                        printf("wkc error %3d\n", i_wkc_error);
+                        i_wkc_error++;
+                        if (i_wkc_error > 256) {
+                            i_wkc_error = 0;
+                        }
                     }
                     if (0==keepRunning) break;
                     // osal_usleep(50);

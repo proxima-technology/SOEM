@@ -310,12 +310,12 @@ void simpletest(char* ifname)
                         }
                         needlf = TRUE;
                     } else {
-                        static int i = 0;
+                        static int i_wkc_error = 0;
                         printf("\033[40;1H%2d ", wkc);
-                        printf("wkc error %3d\n", i);
-                        i++;
-                        if (i > 256) {
-                            i = 0;
+                        printf("wkc error %3d\n", i_wkc_error);
+                        i_wkc_error++;
+                        if (i_wkc_error > 256) {
+                            i_wkc_error = 0;
                         }
                     }
                 }
