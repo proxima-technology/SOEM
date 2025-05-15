@@ -82,7 +82,7 @@ void set_output(uint16 slave_no, uint8 module_index, uint8* value)
 void set_init()
 {
     /*RS485通信で使うidの変更*/
-    set_id(0, motor[0].send);
+    set_id(1, motor[0].send);
     //set_id(1, motor[1].send);
     //set_id(0, motor[2].send);
 
