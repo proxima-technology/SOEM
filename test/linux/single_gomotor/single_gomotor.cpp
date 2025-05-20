@@ -38,10 +38,12 @@
 
 #define USE_ACCELELERATION_TARGET_FLAG 1
 #if USE_ACCELELERATION_TARGET_FLAG
-double previous_acc_ref[MOTOR_NUM] = {0.0};
-double acc_ref_change_time_clock[MOTOR_NUM] = {0.0};
-double pos_at_acc_ref_change[MOTOR_NUM] = {0.0};
-double vel_at_acc_ref_change[MOTOR_NUM] = {0.0};
+double last_acc_set_time_ctrl_clock[MOTOR_NUM] = {0.0};
+double acc_set_time_soem_clock[MOTOR_NUM] = {0.0};
+double pos_at_acc_set_time[MOTOR_NUM] = {0.0};
+double vel_at_acc_set_time[MOTOR_NUM] = {0.0};
+double recent_pos_ref_only_used_by_accref[MOTOR_NUM] = {0.0};
+double recent_vel_ref_only_used_by_accref[MOTOR_NUM] = {0.0};
 #endif
 
 char IOmap[4096];
@@ -267,25 +269,51 @@ void simpletest(char* ifname)
                             double kd = single_gomotor_command_shared[D_GAIN_IDX*MOTOR_NUM + i];
 
 			    #if USE_ACCELELERATION_TARGET_FLAG
-			    struct timespec ts_now;
-			    clock_gettime(CLOCK_MONOTONIC, &ts_now);
-			    double tmp_clock = ts_now.tv_sec + 0.000000001*ts_now.tv_nsec;
-			    double target_acc = single_gomotor_command_shared[ACCELERATION_TARGET_IDX*MOTOR_NUM + i];
-			    //std::cout<<"\n[debug print] target_acc: "<<target_acc<<"\n"<<std::endl;
-			    if(std::abs(previous_acc_ref[i] - target_acc)>1e-5)
-			    {
-			      //std::cout<<"\n[debug print] acc_ref_change_time_clock[i]: "<<acc_ref_change_time_clock[i]<<"\n"<<std::endl;
-			      previous_acc_ref[i] = target_acc;
-			      acc_ref_change_time_clock[i] = tmp_clock;
-			      pos_at_acc_ref_change[i] = single_gomotor_sensor_shared[POSITION_OBS_IDX*MOTOR_NUM + i];
-			      vel_at_acc_ref_change[i] = single_gomotor_sensor_shared[VELOCITY_OBS_IDX*MOTOR_NUM + i];
-			    }
-			    if(std::abs(target_acc)>1e-5)
-			    {
-			      double dt_ = tmp_clock - acc_ref_change_time_clock[i] + 0.0005; // add 0.5 ms
-                              target_vel = vel_at_acc_ref_change[i] + target_acc*dt_;
-                              target_pos = pos_at_acc_ref_change[i] + vel_at_acc_ref_change[i]*dt_ + 0.5*target_acc*dt_*dt_;
-			    }
+
+                double shm_acc_set_time_ctrl_clock = single_gomotor_command_shared[ACCELERATION_SET_CLOCK_TIME_IDX*MOTOR_NUM + i];
+                //
+                if(std::abs(shm_acc_set_time_ctrl_clock)>1e-8)
+                {
+                    // [pos_accref mode]
+                    // over-write target_pos and target_vel based on accref
+
+                    struct timespec ts_now;
+                    clock_gettime(CLOCK_MONOTONIC, &ts_now);
+                    double tmp_soem_clock = ts_now.tv_sec + 0.000000001*ts_now.tv_nsec;
+                    double target_acc = single_gomotor_command_shared[ACCELERATION_TARGET_IDX*MOTOR_NUM + i];
+                    // check if acc_set_time is updated
+                    if(std::abs(last_acc_set_time_ctrl_clock[i] - shm_acc_set_time_ctrl_clock)>1e-5)
+                    {
+                        //std::cout<<"\n[debug print] acc_set_time_soem_clock[i]: "<<acc_set_time_soem_clock[i]<<"\n"<<std::endl;
+                        last_acc_set_time_ctrl_clock[i] = shm_acc_set_time_ctrl_clock;
+                        acc_set_time_soem_clock[i] = tmp_soem_clock;
+
+                        // [type 1]: give initial values by sensor data
+                        // pos_at_acc_set_time[i] = single_gomotor_sensor_shared[POSITION_OBS_IDX*MOTOR_NUM + i];
+                        // vel_at_acc_set_time[i] = single_gomotor_sensor_shared[VELOCITY_OBS_IDX*MOTOR_NUM + i];
+
+                        // [type 2]: give initial values by last ref
+                        pos_at_acc_set_time[i] = recent_pos_ref_only_used_by_accref[i];
+                        vel_at_acc_set_time[i] = recent_vel_ref_only_used_by_accref[i];
+                    }
+
+                    double dt_ = tmp_soem_clock - acc_set_time_soem_clock[i] + 0.0005; // add 0.5 ms
+                    target_vel = vel_at_acc_set_time[i] + target_acc*dt_;
+                    target_pos = pos_at_acc_set_time[i] + vel_at_acc_set_time[i]*dt_ + 0.5*target_acc*dt_*dt_;
+                    recent_pos_ref_only_used_by_accref[i] = 1.0 * target_pos;
+                    recent_vel_ref_only_used_by_accref[i] = 1.0 * target_vel;
+                }
+                else
+                {
+                    // [trq mode, pos mode, zero-cmd mode]
+
+                    // Here, we do not overwrite target_pos and target_vel.
+
+                    // What we do here is resetting variables only used by accref mode.
+                    last_acc_set_time_ctrl_clock[i] = 0.0;
+                    recent_pos_ref_only_used_by_accref[i] = single_gomotor_sensor_shared[POSITION_OBS_IDX*MOTOR_NUM + i];
+                    recent_vel_ref_only_used_by_accref[i] = single_gomotor_sensor_shared[VELOCITY_OBS_IDX*MOTOR_NUM + i];
+                }
 
 			    #endif
                             
