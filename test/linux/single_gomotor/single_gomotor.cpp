@@ -36,6 +36,14 @@
 #define TH2 1.0
 #define MOTOR_NUM 1
 
+#define USE_ACCELELERATION_TARGET_FLAG 1
+#if USE_ACCELELERATION_TARGET_FLAG
+double previous_acc_ref[MOTOR_NUM] = {0.0};
+double acc_ref_change_time_clock[MOTOR_NUM] = {0.0};
+double pos_at_acc_ref_change[MOTOR_NUM] = {0.0};
+double vel_at_acc_ref_change[MOTOR_NUM] = {0.0};
+#endif
+
 char IOmap[4096];
 OSAL_THREAD_HANDLE thread1;
 int expectedWKC;
@@ -257,6 +265,29 @@ void simpletest(char* ifname)
                             double target_vel = single_gomotor_command_shared[VELOCITY_TARGET_IDX*MOTOR_NUM + i];
                             double kp = single_gomotor_command_shared[P_GAIN_IDX*MOTOR_NUM + i];
                             double kd = single_gomotor_command_shared[D_GAIN_IDX*MOTOR_NUM + i];
+
+			    #if USE_ACCELELERATION_TARGET_FLAG
+			    struct timespec ts_now;
+			    clock_gettime(CLOCK_MONOTONIC, &ts_now);
+			    double tmp_clock = ts_now.tv_sec + 0.000000001*ts_now.tv_nsec;
+			    double target_acc = single_gomotor_command_shared[ACCELERATION_TARGET_IDX*MOTOR_NUM + i];
+			    //std::cout<<"\n[debug print] target_acc: "<<target_acc<<"\n"<<std::endl;
+			    if(std::abs(previous_acc_ref[i] - target_acc)>1e-5)
+			    {
+			      //std::cout<<"\n[debug print] acc_ref_change_time_clock[i]: "<<acc_ref_change_time_clock[i]<<"\n"<<std::endl;
+			      previous_acc_ref[i] = target_acc;
+			      acc_ref_change_time_clock[i] = tmp_clock;
+			      pos_at_acc_ref_change[i] = single_gomotor_sensor_shared[POSITION_OBS_IDX*MOTOR_NUM + i];
+			      vel_at_acc_ref_change[i] = single_gomotor_sensor_shared[VELOCITY_OBS_IDX*MOTOR_NUM + i];
+			    }
+			    if(std::abs(target_acc)>1e-5)
+			    {
+			      double dt_ = tmp_clock - acc_ref_change_time_clock[i] + 0.0005; // add 0.5 ms
+                              target_vel = vel_at_acc_ref_change[i] + target_acc*dt_;
+                              target_pos = pos_at_acc_ref_change[i] + vel_at_acc_ref_change[i]*dt_ + 0.5*target_acc*dt_*dt_;
+			    }
+
+			    #endif
                             
                             double torque_max = 23.5;
                             torque_control = std::max(-torque_max, std::min(torque_max, torque_control));
