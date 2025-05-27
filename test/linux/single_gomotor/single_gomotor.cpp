@@ -175,7 +175,7 @@ void simpletest(char* ifname)
     ProcComm *proc_comm_command;
     proc_comm_sensor = new ProcComm(filename_data_single_gomotor_sensor, id_data_single_gomotor_sensor, num_data_single_gomotor_sensor, is_host);
     proc_comm_command = new ProcComm(filename_data_single_gomotor_command, id_data_single_gomotor_command, num_data_single_gomotor_command, is_host);
-    
+
     /* initialise SOEM, bind socket to ifname */
     if (ec_init(ifname)) {
         printf("ec_init on %s succeeded.\n", ifname);
@@ -252,74 +252,63 @@ void simpletest(char* ifname)
                     cyc_f = clock();
                     //printf("\033[%d;1H", 30);
                     double elapsedtime = (double)(cyc_f - cyc_f_pre) / CLOCKS_PER_SEC;
-
                     single_gomotor_command_shared = proc_comm_command->read_stdvec();
-
                     for (int i = 0; i < MOTOR_NUM; i++) {
-		      
-		      if (recv_fin[i]) {
-
-			recv_fin[i] = FALSE;
+		                if (recv_fin[i]) {
+			                recv_fin[i] = FALSE;
                             motor[i].send[15] = check[i];
-
                             double torque_control = single_gomotor_command_shared[TORQUE_CMD_IDX*MOTOR_NUM + i];
                             double target_pos = single_gomotor_command_shared[POSITION_TARGET_IDX*MOTOR_NUM + i];
                             double target_vel = single_gomotor_command_shared[VELOCITY_TARGET_IDX*MOTOR_NUM + i];
                             double kp = single_gomotor_command_shared[P_GAIN_IDX*MOTOR_NUM + i];
                             double kd = single_gomotor_command_shared[D_GAIN_IDX*MOTOR_NUM + i];
 
-			    #if USE_ACCELELERATION_TARGET_FLAG
+                            #if USE_ACCELELERATION_TARGET_FLAG
+                            double shm_acc_set_time_ctrl_clock = single_gomotor_command_shared[ACCELERATION_SET_CLOCK_TIME_IDX*MOTOR_NUM + i];
+                            //
+                            if(std::abs(shm_acc_set_time_ctrl_clock)>1e-8)
+                            {
+                                // [pos_accref mode]
+                                // over-write target_pos and target_vel based on accref
+                                struct timespec ts_now;
+                                clock_gettime(CLOCK_MONOTONIC, &ts_now);
+                                double tmp_soem_clock = ts_now.tv_sec + 0.000000001*ts_now.tv_nsec;
+                                double target_acc = single_gomotor_command_shared[ACCELERATION_TARGET_IDX*MOTOR_NUM + i];
+                                // check if acc_set_time is updated
+                                if(std::abs(last_acc_set_time_ctrl_clock[i] - shm_acc_set_time_ctrl_clock)>1e-5)
+                                {
+                                    //std::cout<<"\n[debug print] acc_set_time_soem_clock[i]: "<<acc_set_time_soem_clock[i]<<"\n"<<std::endl;
+                                    last_acc_set_time_ctrl_clock[i] = shm_acc_set_time_ctrl_clock;
+                                    acc_set_time_soem_clock[i] = tmp_soem_clock;
+                                    // [type 1]: give initial values by sensor data
+                                    // pos_at_acc_set_time[i] = single_gomotor_sensor_shared[POSITION_OBS_IDX*MOTOR_NUM + i];
+                                    // vel_at_acc_set_time[i] = single_gomotor_sensor_shared[VELOCITY_OBS_IDX*MOTOR_NUM + i];
+                                    // [type 2]: give initial values by last ref
+                                    pos_at_acc_set_time[i] = recent_pos_ref_only_used_by_accref[i];
+                                    vel_at_acc_set_time[i] = recent_vel_ref_only_used_by_accref[i];
+                                }
 
-                double shm_acc_set_time_ctrl_clock = single_gomotor_command_shared[ACCELERATION_SET_CLOCK_TIME_IDX*MOTOR_NUM + i];
-                //
-                if(std::abs(shm_acc_set_time_ctrl_clock)>1e-8)
-                {
-                    // [pos_accref mode]
-                    // over-write target_pos and target_vel based on accref
+                                double dt_ = tmp_soem_clock - acc_set_time_soem_clock[i] + 0.0005; // add 0.5 ms
+                                target_vel = vel_at_acc_set_time[i] + target_acc*dt_;
+                                target_pos = pos_at_acc_set_time[i] + vel_at_acc_set_time[i]*dt_ + 0.5*target_acc*dt_*dt_;
+                                recent_pos_ref_only_used_by_accref[i] = 1.0 * target_pos;
+                                recent_vel_ref_only_used_by_accref[i] = 1.0 * target_vel;
+                            }
+                            else
+                            {
+                                // [trq mode, pos mode, zero-cmd mode]
 
-                    struct timespec ts_now;
-                    clock_gettime(CLOCK_MONOTONIC, &ts_now);
-                    double tmp_soem_clock = ts_now.tv_sec + 0.000000001*ts_now.tv_nsec;
-                    double target_acc = single_gomotor_command_shared[ACCELERATION_TARGET_IDX*MOTOR_NUM + i];
-                    // check if acc_set_time is updated
-                    if(std::abs(last_acc_set_time_ctrl_clock[i] - shm_acc_set_time_ctrl_clock)>1e-5)
-                    {
-                        //std::cout<<"\n[debug print] acc_set_time_soem_clock[i]: "<<acc_set_time_soem_clock[i]<<"\n"<<std::endl;
-                        last_acc_set_time_ctrl_clock[i] = shm_acc_set_time_ctrl_clock;
-                        acc_set_time_soem_clock[i] = tmp_soem_clock;
+                                // Here, we do not overwrite target_pos and target_vel.
 
-                        // [type 1]: give initial values by sensor data
-                        // pos_at_acc_set_time[i] = single_gomotor_sensor_shared[POSITION_OBS_IDX*MOTOR_NUM + i];
-                        // vel_at_acc_set_time[i] = single_gomotor_sensor_shared[VELOCITY_OBS_IDX*MOTOR_NUM + i];
+                                // What we do here is resetting variables only used by accref mode.
+                                last_acc_set_time_ctrl_clock[i] = 0.0;
+                                recent_pos_ref_only_used_by_accref[i] = single_gomotor_sensor_shared[POSITION_OBS_IDX*MOTOR_NUM + i];
+                                recent_vel_ref_only_used_by_accref[i] = single_gomotor_sensor_shared[VELOCITY_OBS_IDX*MOTOR_NUM + i];
+                            }
+                            #endif
 
-                        // [type 2]: give initial values by last ref
-                        pos_at_acc_set_time[i] = recent_pos_ref_only_used_by_accref[i];
-                        vel_at_acc_set_time[i] = recent_vel_ref_only_used_by_accref[i];
-                    }
-
-                    double dt_ = tmp_soem_clock - acc_set_time_soem_clock[i] + 0.0005; // add 0.5 ms
-                    target_vel = vel_at_acc_set_time[i] + target_acc*dt_;
-                    target_pos = pos_at_acc_set_time[i] + vel_at_acc_set_time[i]*dt_ + 0.5*target_acc*dt_*dt_;
-                    recent_pos_ref_only_used_by_accref[i] = 1.0 * target_pos;
-                    recent_vel_ref_only_used_by_accref[i] = 1.0 * target_vel;
-                }
-                else
-                {
-                    // [trq mode, pos mode, zero-cmd mode]
-
-                    // Here, we do not overwrite target_pos and target_vel.
-
-                    // What we do here is resetting variables only used by accref mode.
-                    last_acc_set_time_ctrl_clock[i] = 0.0;
-                    recent_pos_ref_only_used_by_accref[i] = single_gomotor_sensor_shared[POSITION_OBS_IDX*MOTOR_NUM + i];
-                    recent_vel_ref_only_used_by_accref[i] = single_gomotor_sensor_shared[VELOCITY_OBS_IDX*MOTOR_NUM + i];
-                }
-
-			    #endif
-                            
                             double torque_max = 23.5;
                             torque_control = std::max(-torque_max, std::min(torque_max, torque_control));
-
                             /*指令値セット*/
                             #if (ENABLE_SINGLE_GOMOTOR == 1)
                             set_mode(1, motor[i].send);
@@ -334,17 +323,13 @@ void simpletest(char* ifname)
                             set_output(1, i, motor[i].send);
                             #endif
                         }
-
-		    }
-		    
+		            }
                     ec_send_processdata();
                     wkc = ec_receive_processdata(EC_TIMEOUTRET);
                     if (wkc >= expectedWKC) {
                         for (int cnt = 0; cnt < MOTOR_NUM; cnt++) {
-
-			  if (check[cnt] == *(motor[cnt].recv + 14)) {
-
-			    // if (true) {
+			                if (check[cnt] == *(motor[cnt].recv + 14)) {
+			                // if (true) {
                                 // end_clock[cnt] = clock();
                                 clock_gettime(CLOCK_MONOTONIC, &t_end[cnt]);
                                 recv_fin[cnt] = TRUE;
@@ -361,28 +346,22 @@ void simpletest(char* ifname)
                                     temp    :温度
                                 */
                                 if (check_CRC(motor[cnt].recv)) {  // CRCチェック
-
-
-				  double raw_position = get_position(motor[cnt].recv);
-				  
-				  single_gomotor_sensor_shared[POSITION_OBS_IDX*MOTOR_NUM + cnt] = raw_position / 6.33;
-				  single_gomotor_sensor_shared[VELOCITY_OBS_IDX*MOTOR_NUM + cnt] = get_angular_vel(motor[cnt].recv) / 6.33;
-				  single_gomotor_sensor_shared[TORQUE_OBS_IDX*MOTOR_NUM + cnt] = get_torque(motor[cnt].recv) * 6.33;
-				  single_gomotor_sensor_shared[TEMPERATURE_OBS_IDX*MOTOR_NUM + cnt] = get_temp(motor[cnt].recv);
-				  single_gomotor_sensor_shared[OBS_GET_CLOCK_TIME_IDX*MOTOR_NUM + cnt] = t_end[cnt].tv_sec + 0.000000001*t_end[cnt].tv_nsec;
-
-				  
-				  {
-                                    printf("\033[%d;1H", cnt + monitoring_print_cursor);
-
-                                    char message[20];
-                                    printf("\033[0K");
-                                    printf("id: %2d, angle: %12.6lf(rad), anglevel: %12.6lf(rad/s), torque: %10.6lf(Nm), temp: %3f℃ , error: %s\n", cnt,
-					   single_gomotor_sensor_shared[POSITION_OBS_IDX*MOTOR_NUM + cnt], single_gomotor_sensor_shared[VELOCITY_OBS_IDX*MOTOR_NUM + cnt], single_gomotor_sensor_shared[TORQUE_OBS_IDX*MOTOR_NUM + cnt], single_gomotor_sensor_shared[TEMPERATURE_OBS_IDX*MOTOR_NUM + cnt],
-					   check_err(motor[cnt].recv, message));
-				    printf("\033[%d;1H", cnt + monitoring_print_cursor + MOTOR_NUM);
-				    printf("\033[0K");
-				    }
+                                    double raw_position = get_position(motor[cnt].recv);
+                                    single_gomotor_sensor_shared[POSITION_OBS_IDX*MOTOR_NUM + cnt] = raw_position / 6.33;
+                                    single_gomotor_sensor_shared[VELOCITY_OBS_IDX*MOTOR_NUM + cnt] = get_angular_vel(motor[cnt].recv) / 6.33;
+                                    single_gomotor_sensor_shared[TORQUE_OBS_IDX*MOTOR_NUM + cnt] = get_torque(motor[cnt].recv) * 6.33;
+                                    single_gomotor_sensor_shared[TEMPERATURE_OBS_IDX*MOTOR_NUM + cnt] = get_temp(motor[cnt].recv);
+                                    single_gomotor_sensor_shared[OBS_GET_CLOCK_TIME_IDX*MOTOR_NUM + cnt] = t_end[cnt].tv_sec + 0.000000001*t_end[cnt].tv_nsec;
+				                    {
+                                        printf("\033[%d;1H", cnt + monitoring_print_cursor);
+                                        char message[20];
+                                        printf("\033[0K");
+                                        printf("id: %2d, angle: %12.6lf(rad), anglevel: %12.6lf(rad/s), torque: %10.6lf(Nm), temp: %3f℃ , error: %s\n", cnt,
+                                        single_gomotor_sensor_shared[POSITION_OBS_IDX*MOTOR_NUM + cnt], single_gomotor_sensor_shared[VELOCITY_OBS_IDX*MOTOR_NUM + cnt], single_gomotor_sensor_shared[TORQUE_OBS_IDX*MOTOR_NUM + cnt], single_gomotor_sensor_shared[TEMPERATURE_OBS_IDX*MOTOR_NUM + cnt],
+                                        check_err(motor[cnt].recv, message));
+                                        printf("\033[%d;1H", cnt + monitoring_print_cursor + MOTOR_NUM);
+                                        printf("\033[0K");
+				                    }
                                     time_count[cnt][time_index[cnt]] = (double)(t_end[cnt].tv_nsec - t_st[cnt].tv_nsec) / 1000000;
                                     if (time_count[cnt][time_index[cnt]] < 0) {
                                         time_count[cnt][time_index[cnt]] += 1000;
@@ -401,10 +380,9 @@ void simpletest(char* ifname)
                                     printf("\a");
                                     check[cnt]++;
                                 }
-			  }
+			                }
                         } // End of for (int cnt = 0; cnt < MOTOR_NUM; cnt++)
                         proc_comm_sensor->write_stdvec(single_gomotor_sensor_shared);
-
                         //計測時間表示
                         /*
                         {
@@ -416,7 +394,6 @@ void simpletest(char* ifname)
                           }
                         }
                         */
-                        
                         needlf = TRUE;
                     } // End of if (wkc >= expectedWKC)
                     else
