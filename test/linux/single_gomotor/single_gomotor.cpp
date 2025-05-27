@@ -369,7 +369,7 @@ void simpletest(char* ifname)
 				  single_gomotor_sensor_shared[VELOCITY_OBS_IDX*MOTOR_NUM + cnt] = get_angular_vel(motor[cnt].recv) / 6.33;
 				  single_gomotor_sensor_shared[TORQUE_OBS_IDX*MOTOR_NUM + cnt] = get_torque(motor[cnt].recv) * 6.33;
 				  single_gomotor_sensor_shared[TEMPERATURE_OBS_IDX*MOTOR_NUM + cnt] = get_temp(motor[cnt].recv);
-
+				  single_gomotor_sensor_shared[OBS_GET_CLOCK_TIME_IDX*MOTOR_NUM + cnt] = t_end[cnt].tv_sec + 0.000000001*t_end[cnt].tv_nsec;
 
 				  
 				  {
