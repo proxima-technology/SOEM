@@ -15,6 +15,7 @@
 #include <time.h>
 #include "ethercat.h"
 #include <stdbool.h>
+#include <stdlib.h>
 #include <math.h>
 #include <fcntl.h>
 #include <sys/types.h>
@@ -69,10 +70,10 @@ void set_init()
 {
     /*RS485通信で使うidの変更*/
     for (int i = 0; i < MOTOR_NUM; i++) {
-        set_id(i, motor[i].send);
+        set_id(2, motor[i].send);
     }
-    // set_id(0, motor[0].send);
-    set_id(0, motor[1].send);
+    set_id(0, motor[0].send);
+    set_id(1, motor[1].send);
     // set_id(0, motor[2].send);
     // set_id(0, motor[3].send);
     set_id(1, motor[4].send);
@@ -204,6 +205,27 @@ void simpletest(char* ifname)
             } while (chk-- && (ec_slave[0].state != EC_STATE_OPERATIONAL));
             if (ec_slave[0].state == EC_STATE_OPERATIONAL) {
                 printf("Operational state reached for all slaves.\n");
+
+                // check the version id of the slave
+
+                const char vcheck[] = "vcheck";
+                ec_slave[1].outputs[15] = 0xcc;
+                int hoge = 0;
+                do {
+                    ec_send_processdata();
+                    ec_receive_processdata(EC_TIMEOUTRET);
+                    hoge++;
+                } while (strncmp(vcheck, ec_slave[1].inputs, sizeof(vcheck) / sizeof(vcheck[0])) != 0);
+                // } while (hoge < 1000);
+
+                int verlen = ec_slave[1].inputs[sizeof(vcheck) / sizeof(vcheck[0])];
+                uint8_t* slave_ver;
+                slave_ver = (uint8_t*)malloc(verlen * sizeof(uint8_t));
+                memcpy(slave_ver, ec_slave[1].inputs + sizeof(vcheck) / sizeof(vcheck[0]) + 1, verlen);
+                printf("slave commit ID is %s\n", slave_ver);
+                ec_slave[1].outputs[15] = 0x00;
+                free(slave_ver);
+
                 printf("\033[10;1H");
                 printf("motor INFO");
                 printf("\033[%d;1H", MOTOR_NUM + 13);
