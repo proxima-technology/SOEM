@@ -30,7 +30,7 @@
 #define NUM 1000
 #define TH 0.5
 #define TH2 0.333333
-#define MOTOR_NUM 2
+#define MOTOR_NUM 1
 
 char IOmap[4096];
 OSAL_THREAD_HANDLE thread1;
@@ -70,7 +70,7 @@ void set_init()
 {
     /*RS485通信で使うidの変更*/
     for (int i = 0; i < MOTOR_NUM; i++) {
-        set_id(2, motor[i].send);
+        set_id(0, motor[i].send);
     }
     // set_id(0, motor[0].send);
     // set_id(1, motor[1].send);
@@ -280,9 +280,11 @@ void simpletest(char* ifname)
                         for (int cnt = 0; cnt < MOTOR_NUM; cnt++) {
                             // if (*(motor[cnt].recv + 14)) {
                             if (*(motor[cnt].recv + 14) != check[cnt]) {
+                                   printf("\033[%d;1H\033[0K", 20 + cnt);
+				    printf("cnt_num%d", *(motor[cnt].recv + 14)-check[cnt]);
                                 if (memcmp(data_prev[cnt], motor[cnt].recv, 14 * sizeof(uint8)) == 0) {
-                                    printf("\033[%d;1H\033[0K", 31 + cnt);
-                                    printf("id %d no change %d\n", cnt, nodata[cnt]++);
+                                   printf("\033[%d;1H\033[0K", 31 + cnt);
+                                   printf("id %d no change %d\n", cnt, nodata[cnt]++);
                                     continue;
                                 }
                                 memcpy(data_prev[cnt], motor[cnt].recv, 14 * sizeof(uint8));
@@ -340,7 +342,7 @@ void simpletest(char* ifname)
                             i = 0;
                         }
                     }
-                    osal_usleep(100);
+                    osal_usleep(70);
                 }
                 inOP = FALSE;
             } else {
