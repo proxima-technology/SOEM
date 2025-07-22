@@ -30,7 +30,7 @@
 #define NUM 1000
 #define TH 0.5
 #define TH2 0.333333
-#define MOTOR_NUM 6
+#define MOTOR_NUM 2
 
 char IOmap[4096];
 OSAL_THREAD_HANDLE thread1;
@@ -72,11 +72,11 @@ void set_init()
     for (int i = 0; i < MOTOR_NUM; i++) {
         set_id(2, motor[i].send);
     }
-    set_id(0, motor[0].send);
-    set_id(1, motor[1].send);
-    // set_id(0, motor[2].send);
-    // set_id(0, motor[3].send);
-    set_id(1, motor[4].send);
+    // set_id(0, motor[0].send);
+    // set_id(1, motor[1].send);
+    // // set_id(0, motor[2].send);
+    // // set_id(0, motor[3].send);
+    // set_id(1, motor[4].send);
     // set_id(1, motor[5].send);
 
     /*指令値をすべて0に設定*/
@@ -141,13 +141,19 @@ void simpletest(char* ifname)
     }
     double time_count[MOTOR_NUM][NUM];
     int time_index[MOTOR_NUM] = {0};
-    int now_time[MOTOR_NUM] = {0};
+    // int now_time[MOTOR_NUM] = {0};
     double max_time[MOTOR_NUM] = {0};
     double min_time[MOTOR_NUM] = {0};
     double ave_time[MOTOR_NUM] = {0};
     double var_time[MOTOR_NUM] = {0};
     int over_num[MOTOR_NUM] = {0};
     int over_num2[MOTOR_NUM] = {0};
+
+    uint8* data_prev[MOTOR_NUM];
+    int nodata[MOTOR_NUM] = {0};
+    for (int i = 0; i < MOTOR_NUM; i++) {
+        data_prev[i] = calloc(14, sizeof(uint8));
+    }
 
     printf("\033[2J\033[1;1H");  // 画面クリア
     printf("Starting simple test\n");
@@ -210,13 +216,12 @@ void simpletest(char* ifname)
 
                 const char vcheck[] = "vcheck";
                 ec_slave[1].outputs[15] = 0xcc;
-                int hoge = 0;
+                int hash_check_cnt = 0;
                 do {
                     ec_send_processdata();
                     ec_receive_processdata(EC_TIMEOUTRET);
-                    hoge++;
-                } while (strncmp(vcheck, ec_slave[1].inputs, sizeof(vcheck) / sizeof(vcheck[0])) != 0);
-                // } while (hoge < 1000);
+                    hash_check_cnt++;
+                } while (strncmp(vcheck, ec_slave[1].inputs, sizeof(vcheck) / sizeof(vcheck[0])) != 0 && hash_check_cnt < 1000);
 
                 int verlen = ec_slave[1].inputs[sizeof(vcheck) / sizeof(vcheck[0])];
                 uint8_t* slave_ver;
@@ -238,38 +243,25 @@ void simpletest(char* ifname)
                     motor[i].recv = get_recv_pointer(i);
                 }
                 // clock_t cyc_f = 0, cyc_f_pre = 0;
-                float tor = 0;
-                float tor2 = 0;
+                // float tor = 0;
+                // float tor2 = 0;
                 struct timespec t_st[MOTOR_NUM], t_end[MOTOR_NUM];
                 volatile bool first_come[MOTOR_NUM] = {false};
 
                 /* cyclic loop */
                 for (;;) {
-                    // cyc_f = clock();
-                    // double elapsedtime = (double)(cyc_f - cyc_f_pre) / CLOCKS_PER_SEC;
-                    // if (elapsedtime > 4.0) {
-                    //     cyc_f_pre = cyc_f;
-                    //     tor = 0;
-                    //     tor2 = 0;
-                    // } else if (elapsedtime > 2.0) {
-                    //     // cyc_f_pre = cyc_f;
-                    //     tor = 0.048;
-                    //     tor2 = -0.048;
-                    //     tor = 0;
-                    //     tor2 = 0;
-                    // }
                     for (int i = 0; i < MOTOR_NUM; i++) {
                         if (recv_fin[i]) {
                             recv_fin[i] = FALSE;
                             // motor[i].send[15] = check[i];
                             /*指令値セット*/
                             set_mode(1, motor[i].send);
-                            if (i == 1) {
-                                set_torque(tor, motor[i].send);
-                            } else {
-                                set_torque(tor2, motor[i].send);
-                            }
-                            // set_torque(tor, motor[i].send);
+                            // if (i == 1) {
+                            //     set_torque(tor, motor[i].send);
+                            // } else {
+                            //     set_torque(tor2, motor[i].send);
+                            // }
+                            set_torque(0.05, motor[i].send);
                             set_speed(0, motor[i].send);
                             set_K_P(0, motor[i].send);
                             set_K_W(0, motor[i].send);
@@ -288,6 +280,12 @@ void simpletest(char* ifname)
                         for (int cnt = 0; cnt < MOTOR_NUM; cnt++) {
                             // if (*(motor[cnt].recv + 14)) {
                             if (*(motor[cnt].recv + 14) != check[cnt]) {
+                                if (memcmp(data_prev[cnt], motor[cnt].recv, 14 * sizeof(uint8)) == 0) {
+                                    printf("\033[%d;1H\033[0K", 31 + cnt);
+                                    printf("id %d no change %d\n", cnt, nodata[cnt]++);
+                                    continue;
+                                }
+                                memcpy(data_prev[cnt], motor[cnt].recv, 14 * sizeof(uint8));
                                 check[cnt] = *(motor[cnt].recv + 14);
                                 clock_gettime(CLOCK_MONOTONIC, &t_end[cnt]);
                                 recv_fin[cnt] = TRUE;
@@ -309,7 +307,7 @@ void simpletest(char* ifname)
                                     if (time_count[cnt][time_index[cnt]] < 0) {
                                         time_count[cnt][time_index[cnt]] += 1000;
                                     }
-                                    now_time[cnt] = time_index[cnt];
+                                    // now_time[cnt] = time_index[cnt];
                                     time_index[cnt]++;
                                     if (time_index[cnt] == NUM) {
                                         time_index[cnt] = 0;
@@ -342,6 +340,7 @@ void simpletest(char* ifname)
                             i = 0;
                         }
                     }
+                    osal_usleep(100);
                 }
                 inOP = FALSE;
             } else {
@@ -364,6 +363,9 @@ void simpletest(char* ifname)
         printf("End simple test, close socket\n");
         /* stop SOEM, close socket */
         ec_close();
+        for (int i = 0; i < MOTOR_NUM; i++) {
+            free(data_prev[i]);
+        }
     } else {
         printf("No socket connection on %s\nExecute as root\n", ifname);
     }
