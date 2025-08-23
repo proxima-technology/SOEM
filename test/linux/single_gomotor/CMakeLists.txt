@@ -7,4 +7,8 @@ set(CMAKE_CXX_COMPILER g++)
 set(SOURCES single_gomotor.cpp)
 add_executable(single_gomotor ${SOURCES})
 target_link_libraries(single_gomotor soem pthread)
+target_include_directories(single_gomotor
+                            PRIVATE
+                            $ENV{HOME}/demo-expo-cart-pole/cppmtr/config
+                            $ENV{HOME}/demo-expo-cart-pole/cppmtr/shm/shm)
 install(TARGETS single_gomotor DESTINATION bin)

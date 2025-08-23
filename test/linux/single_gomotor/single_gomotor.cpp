@@ -25,8 +25,8 @@
 #include "set.h"
 #include "get.h"
 
-#include "../../../../config.h"
-#include "../../../../shm/shm.hpp"
+#include "config.h"
+#include "shm.hpp"
 #include <fstream>
 
 #define EC_TIMEOUTMON 500
