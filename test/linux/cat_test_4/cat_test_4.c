@@ -152,7 +152,7 @@ void simpletest(char* ifname)
     int over_num2[MOTOR_NUM] = {0};
 
     uint8* data_prev[MOTOR_NUM];
-    int nodata[MOTOR_NUM] = {0};
+    // int nodata[MOTOR_NUM] = {0};
     for (int i = 0; i < MOTOR_NUM; i++) {
         data_prev[i] = calloc(14, sizeof(uint8));
     }
@@ -249,37 +249,30 @@ void simpletest(char* ifname)
                 // float tor2 = 0;
                 struct timespec t_st[MOTOR_NUM], t_end[MOTOR_NUM];
                 volatile bool first_come[MOTOR_NUM] = {false};
-		volatile uint8_t order_prev[15];
-		volatile int badcnt = 0;
-		volatile int goodcnt = 0;
-		float tor = 0;
-		float d_tor = 0.01;
+                uint8_t order_prev[15];
+                volatile int badcnt = 0;
+                volatile int goodcnt = 0;
+                float tor = 0;
+                float d_tor = 0.01;
 
                 /* cyclic loop */
                 for (;;) {
                     for (int i = 0; i < MOTOR_NUM; i++) {
                         if (recv_fin[i]) {
                             recv_fin[i] = FALSE;
-			    memcpy(order_prev, motor[i].send, 15);
-                            //motor[i].send[15] = check_order[i];
-                            //motor[i].send[15] = check[i];
-			    check_order[i]++;
-			    if(check_order[i] > 0xcc) {
-				    check_order[i] = 0;
-			    }
+                            memcpy(order_prev, motor[i].send, 15);
+                            check_order[i]++;
+                            if (check_order[i] >= 0xcc) {
+                                check_order[i] = 0;
+                            }
                             motor[i].send[15] = check_order[i];
                             /*指令値セット*/
                             set_mode(1, motor[i].send);
-                            // if (i == 1) {
-                            //     set_torque(tor, motor[i].send);
-                            // } else {
-                            //     set_torque(tor2, motor[i].send);
-                            // }
-			    //tor += d_tor;
-			    if(tor > 0.05 || tor < -0.05){
-				    d_tor *= -1;
-			    }
-			    tor += d_tor;
+
+                            if (tor > 0.05 || tor < -0.05) {
+                                d_tor *= -1;
+                            }
+                            tor += d_tor;
                             set_torque(tor, motor[i].send);
                             set_speed(0, motor[i].send);
                             set_K_P(0, motor[i].send);
@@ -299,50 +292,50 @@ void simpletest(char* ifname)
                         for (int cnt = 0; cnt < MOTOR_NUM; cnt++) {
                             // if (*(motor[cnt].recv + 14)) {
                             if (*(motor[cnt].recv + 14) != check[cnt]) {
-                                   printf("\033[%d;1H\033[0K", 20 + cnt);
-				   //printf("%d", check[cnt]);
-				   
-				   if(*(motor[cnt].recv + 14) < check[cnt]){
-				   	printf("cnt_num%d", *(motor[cnt].recv + 14) - check[cnt] + 255);
-				   } else {
-					   printf("cnt_num%d", *(motor[cnt].recv + 14) - check[cnt]);
-				   }
-				   
+                                printf("\033[%d;1H\033[0K", 20 + cnt);
+                                // printf("%d", check[cnt]);
+
+                                if (*(motor[cnt].recv + 14) < check[cnt]) {
+                                    printf("cnt_num%d", *(motor[cnt].recv + 14) - check[cnt] + 255);
+                                } else {
+                                    printf("cnt_num%d", *(motor[cnt].recv + 14) - check[cnt]);
+                                }
+
                                 //if (memcmp(data_prev[cnt], motor[cnt].recv, 14 * sizeof(uint8)) == 0) {
-                                  // printf("\033[%d;1H\033[0K", 31 + cnt);
-                                  // printf("id %d no change %d\n", cnt, nodata[cnt]++);
-                                   // continue;
+                                // printf("\033[%d;1H\033[0K", 31 + cnt);
+                                // printf("id %d no change %d\n", cnt, nodata[cnt]++);
+                                // continue;
                                 //}
-				
-				if (memcmp(order_prev, motor[cnt].recv + 15, 15 * sizeof(uint8)) != 0) {
-					badcnt++;
-                                	printf("\033[%d;1H\033[0K", 39 + cnt);
-			    		//for(int j = 0; j <15;j++){
-			    		//	printf("%2x %2x ", *(motor[cnt].recv+j+15), order_prev[j]);
-					//}
-					if(d_tor > 0){
-						if(order_prev[1] > *(motor[cnt].recv + 16)){
-							printf("PC fast+");
-						} else {
-							printf("stm fast+");
-						}
-					} else if (d_tor < 0){
-						if(order_prev[1] < *(motor[cnt].recv + 16)){
-							printf("PC fast-");
-						} else {
-							printf("stm fast-");
-						}
-					}
-						
-				} else {
-					goodcnt++;
-				}
+
+                                if (memcmp(order_prev, motor[cnt].recv + 15, 15 * sizeof(uint8)) != 0) {
+                                    badcnt++;
+                                    printf("\033[%d;1H\033[0K", 39 + cnt);
+                                    // for(int j = 0; j <15;j++){
+                                    // printf("%2x %2x %2lf\n", *(motor[cnt].recv + 16), order_prev[1], d_tor);
+                                    //}
+                                    if (d_tor > 0) {
+                                        if (order_prev[1] > *(motor[cnt].recv + 16)) {
+                                            printf("PC  fast+\n");
+                                        } else {
+                                            printf("stm fast+\n");
+                                        }
+                                    } else if (d_tor < 0) {
+                                        if (order_prev[1] < *(motor[cnt].recv + 16)) {
+                                            printf("PC  fast-\n");
+                                        } else {
+                                            printf("stm fast-\n");
+                                        }
+                                    }
+
+                                } else {
+                                    goodcnt++;
+                                }
                                 printf("\033[%d;1H\033[0K", 38 + cnt);
-				printf("incorrect %d correct %d\n", badcnt, goodcnt);
-				
-			    	//for(int j = 0; j <15;j++){
-			    	//	printf("%2x %2x ", *(motor[cnt].recv+j+15), order_prev[j]);
-				//}
+                                printf("incorrect %d correct %d\n", badcnt, goodcnt);
+
+                                // for(int j = 0; j <15;j++){
+                                //	printf("%2x %2x ", *(motor[cnt].recv+j+15), order_prev[j]);
+                                //}
 
                                 memcpy(data_prev[cnt], motor[cnt].recv, 14 * sizeof(uint8));
                                 check[cnt] = *(motor[cnt].recv + 14);
