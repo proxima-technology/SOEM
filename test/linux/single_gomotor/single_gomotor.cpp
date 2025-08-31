@@ -28,6 +28,8 @@
 #include "config.h"
 #include "shm.hpp"
 #include <fstream>
+#include <iostream>
+#include <iomanip>
 
 #define EC_TIMEOUTMON 500
 #define NUM 1000
@@ -105,6 +107,96 @@ void set_init()
         set_K_W(0, motor[i].send);
         set_position(0, motor[i].send);
     }
+}
+
+// ロギング用のバッファを定義．
+// 位置，速度の観測値と，目標位置，目標速度の指令値を保存する．
+// 観測値は，C++プロセス内のタイムスタンプと一緒に保存する．
+// 指令値は，書き込まれた時刻のタイムスタンプ，C++プロセス内のタイムスタンプと一緒に保存する．
+// 指令値の計算に使用した加速度目標値，ゼロ次ホールド積分の初期位置と速度も保存する．
+// 1ステップあたりのデータ数
+const int obs_log_data_per_step = 3;
+const int cmd_log_data_per_step = 7;
+// ロギング用のバッファサイズ
+const int log_buffer_size = 30000;
+// ロギング用のバッファ
+double obs_log_buffer[log_buffer_size][obs_log_data_per_step];
+double cmd_log_buffer[log_buffer_size][cmd_log_data_per_step];
+// ロギング用のバッファのインデックス
+int obs_log_index = 0;
+int cmd_log_index = 0;
+// ロギング用のファイル名
+std::string obs_log_filename = "single_gomotor_obs_log.csv";
+std::string cmd_log_filename = "single_gomotor_cmd_log.csv";
+// ロギング用の関数
+void log_obs_data(double cpp_time, double position, double velocity)
+{
+    if (obs_log_index < log_buffer_size) {
+        obs_log_buffer[obs_log_index][0] = cpp_time;
+        obs_log_buffer[obs_log_index][1] = position;
+        obs_log_buffer[obs_log_index][2] = velocity;
+        obs_log_index++;
+    } else {
+        obs_log_buffer[0][0] = cpp_time;
+        obs_log_buffer[0][1] = position;
+        obs_log_buffer[0][2] = velocity;
+        obs_log_index = 1;
+    }
+}
+void log_cmd_data(double cpp_time, double python_set_time, double acc_cmd, double position_0, double velocity_0, double position_cmd, double velocity_cmd)
+{
+    if (cmd_log_index < log_buffer_size) {
+        cmd_log_buffer[cmd_log_index][0] = cpp_time;
+        cmd_log_buffer[cmd_log_index][1] = python_set_time;
+        cmd_log_buffer[cmd_log_index][2] = acc_cmd;
+        cmd_log_buffer[cmd_log_index][3] = position_0;
+        cmd_log_buffer[cmd_log_index][4] = velocity_0;
+        cmd_log_buffer[cmd_log_index][5] = position_cmd;
+        cmd_log_buffer[cmd_log_index][6] = velocity_cmd;
+        cmd_log_index++;
+    } else {
+        cmd_log_buffer[0][0] = cpp_time;
+        cmd_log_buffer[0][1] = python_set_time;
+        cmd_log_buffer[0][2] = acc_cmd;
+        cmd_log_buffer[0][3] = position_0;
+        cmd_log_buffer[0][4] = velocity_0;
+        cmd_log_buffer[0][5] = position_cmd;
+        cmd_log_buffer[0][6] = velocity_cmd;
+        cmd_log_index = 1;
+    }
+}
+void save_log_to_file()
+{
+    // ロギング用のファイルストリーム
+    std::ofstream obs_log_file(obs_log_filename);
+    std::ofstream cmd_log_file(cmd_log_filename);
+    // ロギングの精度を設定
+    obs_log_file.setf(std::ios::fixed);
+    obs_log_file.precision(10);
+
+    cmd_log_file.setf(std::ios::fixed);
+    cmd_log_file.precision(10);
+
+    // 観測データのログをファイルに保存
+
+    for (int i = 0; i < obs_log_index; i++) {
+        obs_log_file << obs_log_buffer[i][0] << ","
+                     << obs_log_buffer[i][1] << ","
+                     << obs_log_buffer[i][2] << "\n";
+    }
+    // 指令データのログをファイルに保存
+    for (int i = 0; i < cmd_log_index; i++) {
+        cmd_log_file << cmd_log_buffer[i][0] << ","
+                     << cmd_log_buffer[i][1] << ","
+                     << cmd_log_buffer[i][2] << ","
+                     << cmd_log_buffer[i][3] << ","
+                     << cmd_log_buffer[i][4] << ","
+                     << cmd_log_buffer[i][5] << ","
+                     << cmd_log_buffer[i][6] << "\n";
+    }
+    // ファイルを閉じる
+    obs_log_file.close();
+    cmd_log_file.close();
 }
 
 /*
@@ -291,17 +383,32 @@ void simpletest(char* ifname)
                                 double dt_ = tmp_soem_clock - acc_set_time_soem_clock[i] + 0.0005; // add 0.5 ms
                                 target_vel = vel_at_acc_set_time[i] + target_acc*dt_;
                                 target_pos = pos_at_acc_set_time[i] + vel_at_acc_set_time[i]*dt_ + 0.5*target_acc*dt_*dt_;
+                                // from Motor Catalogue
+                                double max_vel = 30.0; // rad/s
+                                target_vel = std::max(-max_vel, std::min(max_vel, target_vel));
+                                log_cmd_data(tmp_soem_clock, shm_acc_set_time_ctrl_clock, target_acc, recent_pos_ref_only_used_by_accref[i], recent_vel_ref_only_used_by_accref[i], target_pos, target_vel);
+                                log_obs_data(single_gomotor_sensor_shared[OBS_GET_CLOCK_TIME_IDX],
+                                                single_gomotor_sensor_shared[POSITION_OBS_IDX],
+                                                single_gomotor_sensor_shared[VELOCITY_OBS_IDX] );
                                 recent_pos_ref_only_used_by_accref[i] = 1.0 * target_pos;
                                 recent_vel_ref_only_used_by_accref[i] = 1.0 * target_vel;
                             }
                             else
                             {
+                                struct timespec ts_now;
+                                clock_gettime(CLOCK_MONOTONIC, &ts_now);
+                                double tmp_soem_clock = ts_now.tv_sec + 0.000000001*ts_now.tv_nsec;
+                                double target_acc = 0.0;
                                 // [trq mode, pos mode, zero-cmd mode]
 
                                 // Here, we do not overwrite target_pos and target_vel.
 
                                 // What we do here is resetting variables only used by accref mode.
                                 last_acc_set_time_ctrl_clock[i] = 0.0;
+                                log_cmd_data(tmp_soem_clock, shm_acc_set_time_ctrl_clock, target_acc, recent_pos_ref_only_used_by_accref[i], recent_vel_ref_only_used_by_accref[i], target_pos, target_vel);
+                                log_obs_data(single_gomotor_sensor_shared[OBS_GET_CLOCK_TIME_IDX],
+                                                single_gomotor_sensor_shared[POSITION_OBS_IDX],
+                                                single_gomotor_sensor_shared[VELOCITY_OBS_IDX] );
                                 recent_pos_ref_only_used_by_accref[i] = single_gomotor_sensor_shared[POSITION_OBS_IDX*MOTOR_NUM + i];
                                 recent_vel_ref_only_used_by_accref[i] = single_gomotor_sensor_shared[VELOCITY_OBS_IDX*MOTOR_NUM + i];
                             }
@@ -404,6 +511,7 @@ void simpletest(char* ifname)
                     // osal_usleep(50);
                 } // End of cyclic loop
                 inOP = FALSE;
+                save_log_to_file();
             } // End of if (ec_slave[0].state == EC_STATE_OPERATIONAL)
             else
             {
