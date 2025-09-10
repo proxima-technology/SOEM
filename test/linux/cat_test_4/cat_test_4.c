@@ -309,7 +309,7 @@ void simpletest(char* ifname)
 
                                 if (memcmp(order_prev, motor[cnt].recv + 15, 15 * sizeof(uint8)) != 0) {
                                     badcnt++;
-                                    printf("\033[%d;1H\033[0K", 39 + cnt);
+                                    printf("\033[%d;1H\033[0K", 40 + cnt);
                                     // for(int j = 0; j <15;j++){
                                     // printf("%2x %2x %2lf\n", *(motor[cnt].recv + 16), order_prev[1], d_tor);
                                     //}
@@ -326,16 +326,11 @@ void simpletest(char* ifname)
                                             printf("stm fast-\n");
                                         }
                                     }
-
                                 } else {
                                     goodcnt++;
                                 }
-                                printf("\033[%d;1H\033[0K", 38 + cnt);
-                                printf("incorrect %d correct %d\n", badcnt, goodcnt);
-
-                                // for(int j = 0; j <15;j++){
-                                //	printf("%2x %2x ", *(motor[cnt].recv+j+15), order_prev[j]);
-                                //}
+                                // printf("\033[%d;1H\033[0K", 38 + cnt);
+                                // printf("incorrect %d correct %d\n", badcnt, goodcnt);
 
                                 memcpy(data_prev[cnt], motor[cnt].recv, 14 * sizeof(uint8));
                                 check[cnt] = *(motor[cnt].recv + 14);
@@ -352,9 +347,10 @@ void simpletest(char* ifname)
                                 if (check_CRC(motor[cnt].recv)) {  // CRCチェック
                                     char message[20];
                                     /*フィードバック値表示*/
-                                    // printf("\033[%d;1H\033[0K", cnt + 12);
-                                    // printf("id: %2d, torque: %10.6lf(Nm), anglevel: %12.6lf(rad/s), angle: %12.6lf(rad), temp: %3d℃ , error: %s\n", cnt, get_torque(motor[cnt].recv), get_angular_vel(motor[cnt].recv), get_position(motor[cnt].recv), get_temp(motor[cnt].recv), check_err(motor[cnt].recv, message));
-                                    // printf("\033[%d;1H\033[0K", MOTOR_NUM + 12 + cnt);
+                                    //printf("\033[%d;1H\033[0K", cnt + 12);
+                                    //printf("id: %2d, torque: %10.6lf(Nm), anglevel: %12.6lf(rad/s), angle: %12.6lf(rad), temp: %3d℃ , error: %s\n", cnt, get_torque(motor[cnt].recv), get_angular_vel(motor[cnt].recv), get_position(motor[cnt].recv), get_temp(motor[cnt].recv), check_err(motor[cnt].recv, message));
+                                    //printf("\033[%d;1H\033[0K", MOTOR_NUM + 15 + cnt);
+                                    //printf("id: %2d, ave %8.6fms ,var %8.6fms ,max %8.6fms ,min %8.6fms ,over ratio(%4.1lfkHz) %4.1f %% ,over ratio(%4.1lfkHz) %4.1f %%\n", cnt, ave_time[cnt], var_time[cnt], max_time[cnt], min_time[cnt], 1.0 / (float)TH, (float)over_num[cnt] / (float)NUM * 100.0, 1.0 / (float)TH2, (float)over_num2[cnt] / (float)NUM * 100.0);
                                     time_count[cnt][time_index[cnt]] = (double)(t_end[cnt].tv_nsec - t_st[cnt].tv_nsec) / 1000000;
                                     if (time_count[cnt][time_index[cnt]] < 0) {
                                         time_count[cnt][time_index[cnt]] += 1000;
@@ -370,6 +366,9 @@ void simpletest(char* ifname)
                                         /*計測時間表示*/
                                         printf("\033[%d;1H\033[0K", MOTOR_NUM + 15 + cnt);
                                         printf("id: %2d, ave %8.6fms ,var %8.6fms ,max %8.6fms ,min %8.6fms ,over ratio(%4.1lfkHz) %4.1f %% ,over ratio(%4.1lfkHz) %4.1f %%\n", cnt, ave_time[cnt], var_time[cnt], max_time[cnt], min_time[cnt], 1.0 / (float)TH, (float)over_num[cnt] / (float)NUM * 100.0, 1.0 / (float)TH2, (float)over_num2[cnt] / (float)NUM * 100.0);
+                                        printf("\033[%d;1H\033[0K", 38 + cnt);
+                                        printf("incorrect %d correct %d\n", badcnt, goodcnt);
+                                        printf("rs485 %d0us", motor[cnt].recv[31]);
                                     }
                                 } else {
                                     if (first_come[cnt]) {
@@ -392,7 +391,7 @@ void simpletest(char* ifname)
                             i = 0;
                         }
                     }
-                    osal_usleep(70);
+                    osal_usleep(350);
                 }
                 inOP = FALSE;
             } else {
