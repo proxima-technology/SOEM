@@ -90,6 +90,85 @@ void set_init()
     }
 }
 
+#define obs_log_data_per_step 3
+#define cmd_log_data_per_step 7
+// ロギング用のバッファサイズ
+#define log_buffer_size 30000
+// ロギング用のバッファ
+double obs_log_buffer[log_buffer_size][obs_log_data_per_step];
+double cmd_log_buffer[log_buffer_size][cmd_log_data_per_step];
+// ロギング用のバッファのインデックス
+int obs_log_index = 0;
+int cmd_log_index = 0;
+// ロギング用のファイル名
+FILE* obs_log_file;
+const char* obs_log_filepath = "single_gomotor_obs_log.csv";
+// std::string obs_log_filename = "single_gomotor_obs_log.csv";
+// std::string cmd_log_filename = "single_gomotor_cmd_log.csv";
+// ロギング用の関数
+void log_obs_data(double cpp_time, double position, double velocity)
+{
+    if (obs_log_index < log_buffer_size) {
+        obs_log_buffer[obs_log_index][0] = cpp_time;
+        obs_log_buffer[obs_log_index][1] = position;
+        obs_log_buffer[obs_log_index][2] = velocity;
+        obs_log_index++;
+    } else {
+        obs_log_buffer[0][0] = cpp_time;
+        obs_log_buffer[0][1] = position;
+        obs_log_buffer[0][2] = velocity;
+        obs_log_index = 1;
+    }
+}
+void log_cmd_data(double cpp_time, double python_set_time, double acc_cmd, double position_0, double velocity_0, double position_cmd, double velocity_cmd)
+{
+    if (cmd_log_index < log_buffer_size) {
+        cmd_log_buffer[cmd_log_index][0] = cpp_time;
+        cmd_log_buffer[cmd_log_index][1] = python_set_time;
+        cmd_log_buffer[cmd_log_index][2] = acc_cmd;
+        cmd_log_buffer[cmd_log_index][3] = position_0;
+        cmd_log_buffer[cmd_log_index][4] = velocity_0;
+        cmd_log_buffer[cmd_log_index][5] = position_cmd;
+        cmd_log_buffer[cmd_log_index][6] = velocity_cmd;
+        cmd_log_index++;
+    } else {
+        cmd_log_buffer[0][0] = cpp_time;
+        cmd_log_buffer[0][1] = python_set_time;
+        cmd_log_buffer[0][2] = acc_cmd;
+        cmd_log_buffer[0][3] = position_0;
+        cmd_log_buffer[0][4] = velocity_0;
+        cmd_log_buffer[0][5] = position_cmd;
+        cmd_log_buffer[0][6] = velocity_cmd;
+        cmd_log_index = 1;
+    }
+}
+
+void save_log_to_file()
+{
+    // ロギング用のファイルストリーム
+    obs_log_file = fopen(obs_log_filepath, "w");
+
+    // 観測データのログをファイルに保存
+
+
+    for (int i = 0; i < obs_log_index; i++) {
+        fprintf(obs_log_file, "%.5f,%.5f,%.5f\n", obs_log_buffer[i][0], obs_log_buffer[i][1], obs_log_buffer[i][2]);
+    }
+    // 指令データのログをファイルに保存
+    // for (int i = 0; i < cmd_log_index; i++) {
+    //     cmd_log_file << cmd_log_buffer[i][0] << ","
+    //                  << cmd_log_buffer[i][1] << ","
+    //                  << cmd_log_buffer[i][2] << ","
+    //                  << cmd_log_buffer[i][3] << ","
+    //                  << cmd_log_buffer[i][4] << ","
+    //                  << cmd_log_buffer[i][5] << ","
+    //                  << cmd_log_buffer[i][6] << "\n";
+    // }
+    // ファイルを閉じる
+    fclose(obs_log_file);
+    // cmd_log_file.close();
+}
+
 /*
     計測用関数
 */
@@ -256,7 +335,7 @@ void simpletest(char* ifname)
                 float d_tor = 0.01;
 
                 /* cyclic loop */
-                for (;;) {
+                for (int loop_cnt = 0; loop_cnt < NUM * 10; loop_cnt++) {
                     for (int i = 0; i < MOTOR_NUM; i++) {
                         if (recv_fin[i]) {
                             recv_fin[i] = FALSE;
@@ -294,12 +373,13 @@ void simpletest(char* ifname)
                             if (*(motor[cnt].recv + 14) != check[cnt]) {
                                 printf("\033[%d;1H\033[0K", 20 + cnt);
                                 // printf("%d", check[cnt]);
-
+                                /*
                                 if (*(motor[cnt].recv + 14) < check[cnt]) {
                                     printf("cnt_num%d", *(motor[cnt].recv + 14) - check[cnt] + 255);
                                 } else {
                                     printf("cnt_num%d", *(motor[cnt].recv + 14) - check[cnt]);
                                 }
+                                */
 
                                 //if (memcmp(data_prev[cnt], motor[cnt].recv, 14 * sizeof(uint8)) == 0) {
                                 // printf("\033[%d;1H\033[0K", 31 + cnt);
@@ -379,6 +459,7 @@ void simpletest(char* ifname)
                                     }
                                 }
                             }
+                            log_obs_data(get_torque(motor[cnt].recv), get_position(motor[cnt].recv), get_angular_vel(motor[cnt].recv));
                         }
                         needlf = TRUE;
 
@@ -391,9 +472,10 @@ void simpletest(char* ifname)
                             i = 0;
                         }
                     }
-                    osal_usleep(350);
+                    osal_usleep(300);
                 }
                 inOP = FALSE;
+                save_log_to_file();
             } else {
                 printf("Not all slaves reached operational state.\n");
                 ec_readstate();
