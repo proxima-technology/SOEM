@@ -326,16 +326,18 @@ void simpletest(char* ifname)
                 // clock_t cyc_f = 0, cyc_f_pre = 0;
                 // float tor = 0;
                 // float tor2 = 0;
-                struct timespec t_st[MOTOR_NUM], t_end[MOTOR_NUM];
+                struct timespec t_st[MOTOR_NUM], t_end[MOTOR_NUM], loop_st, loop_end;
                 volatile bool first_come[MOTOR_NUM] = {false};
                 uint8_t order_prev[15];
                 volatile int badcnt = 0;
                 volatile int goodcnt = 0;
                 float tor = 0;
                 float d_tor = 0.01;
+                int error_cnt = 0;
 
                 /* cyclic loop */
                 for (int loop_cnt = 0; loop_cnt < NUM * 10; loop_cnt++) {
+                    clock_gettime(CLOCK_MONOTONIC, &loop_st);
                     for (int i = 0; i < MOTOR_NUM; i++) {
                         if (recv_fin[i]) {
                             recv_fin[i] = FALSE;
@@ -370,9 +372,12 @@ void simpletest(char* ifname)
                     if (wkc >= expectedWKC) {
                         for (int cnt = 0; cnt < MOTOR_NUM; cnt++) {
                             // if (*(motor[cnt].recv + 14)) {
+                            if (*(motor[cnt].recv) == 255) {
+                                ++error_cnt;
+                            }
                             if (*(motor[cnt].recv + 14) != check[cnt]) {
                                 printf("\033[%d;1H\033[0K", 20 + cnt);
-                                // printf("%d", check[cnt]);
+                                printf("%d", *(motor[cnt].recv + 14) - check[cnt]);
                                 /*
                                 if (*(motor[cnt].recv + 14) < check[cnt]) {
                                     printf("cnt_num%d", *(motor[cnt].recv + 14) - check[cnt] + 255);
@@ -393,6 +398,7 @@ void simpletest(char* ifname)
                                     // for(int j = 0; j <15;j++){
                                     // printf("%2x %2x %2lf\n", *(motor[cnt].recv + 16), order_prev[1], d_tor);
                                     //}
+                                    /*
                                     if (d_tor > 0) {
                                         if (order_prev[1] > *(motor[cnt].recv + 16)) {
                                             printf("PC  fast+\n");
@@ -406,6 +412,7 @@ void simpletest(char* ifname)
                                             printf("stm fast-\n");
                                         }
                                     }
+                                    */
                                 } else {
                                     goodcnt++;
                                 }
@@ -472,7 +479,12 @@ void simpletest(char* ifname)
                             i = 0;
                         }
                     }
-                    osal_usleep(300);
+                    osal_usleep(150);
+                    clock_gettime(CLOCK_MONOTONIC, &loop_end);
+                    double loop_time = (double)(loop_end.tv_nsec - loop_st.tv_nsec) / 1000000;
+                    printf("\033[%d;1H\033[0K", 45);
+                    printf("looptime %lf(ms)", loop_time);
+                    printf("error cnt %d", error_cnt);
                 }
                 inOP = FALSE;
                 save_log_to_file();
