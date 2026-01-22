@@ -15,6 +15,7 @@
 #include <time.h>
 #include "ethercat.h"
 #include <stdbool.h>
+#include <stdlib.h>
 #include <math.h>
 #include <fcntl.h>
 #include <sys/types.h>
@@ -27,10 +28,9 @@
 
 #define EC_TIMEOUTMON 500
 #define NUM 1000
-#define TH 2.0
-// #define TH2 0.16666666667
-#define TH2 1.0
-#define MOTOR_NUM 3
+#define TH 0.5
+#define TH2 0.333333
+#define MOTOR_NUM 1
 
 char IOmap[4096];
 OSAL_THREAD_HANDLE thread1;
@@ -69,10 +69,15 @@ void set_output(uint16 slave_no, uint8 module_index, uint8* value)
 void set_init()
 {
     /*RS485通信で使うidの変更*/
-    set_id(0, motor[0].send);
-    set_id(1, motor[1].send);
-    set_id(0, motor[2].send);
-    // set_id(0, motor[3].send);
+    for (int i = 0; i < MOTOR_NUM; i++) {
+        set_id(0, motor[i].send);
+    }
+    // set_id(0, motor[0].send);
+    // set_id(1, motor[1].send);
+    // // set_id(0, motor[2].send);
+    // // set_id(0, motor[3].send);
+    // set_id(1, motor[4].send);
+    // set_id(1, motor[5].send);
 
     /*指令値をすべて0に設定*/
     for (int i = 0; i < MOTOR_NUM; i++) {
@@ -83,6 +88,109 @@ void set_init()
         set_K_W(0, motor[i].send);
         set_position(0, motor[i].send);
     }
+}
+
+#define obs_log_data_per_step 3
+#define cmd_log_data_per_step 7
+// ロギング用のバッファサイズ
+#define log_buffer_size 30000
+// ロギング用のバッファ
+double obs_log_buffer[log_buffer_size][obs_log_data_per_step];
+double cmd_log_buffer[log_buffer_size][cmd_log_data_per_step];
+// ロギング用のバッファのインデックス
+int obs_log_index = 0;
+int cmd_log_index = 0;
+// ロギング用のファイル名
+FILE* obs_log_file;
+const char* obs_log_filepath = "single_gomotor_obs_log.csv";
+FILE* cmd_log_file;
+const char* cmd_log_filepath = "single_gomotor_cmd_log.csv";
+// std::string obs_log_filename = "single_gomotor_obs_log.csv";
+// std::string cmd_log_filename = "single_gomotor_cmd_log.csv";
+// ロギング用の関数
+void log_obs_data(double cpp_time, double position, double velocity)
+{
+    if (obs_log_index < log_buffer_size) {
+        obs_log_buffer[obs_log_index][0] = cpp_time;
+        obs_log_buffer[obs_log_index][1] = position;
+        obs_log_buffer[obs_log_index][2] = velocity;
+        obs_log_index++;
+    } else {
+        obs_log_buffer[0][0] = cpp_time;
+        obs_log_buffer[0][1] = position;
+        obs_log_buffer[0][2] = velocity;
+        obs_log_index = 1;
+    }
+}
+
+void log_cmd_data(double cpp_time, double tor_cmd_pre, double tor_cmd)
+{
+    if (cmd_log_index < log_buffer_size) {
+        cmd_log_buffer[cmd_log_index][0] = cpp_time;
+        cmd_log_buffer[cmd_log_index][1] = tor_cmd_pre;
+        cmd_log_buffer[cmd_log_index][2] = tor_cmd;
+        cmd_log_index++;
+    } else {
+        cmd_log_buffer[0][0] = cpp_time;
+        cmd_log_buffer[0][1] = tor_cmd_pre;
+        cmd_log_buffer[0][2] = tor_cmd;
+        cmd_log_index = 1;
+    }
+}
+
+// void log_cmd_data(double cpp_time, double python_set_time, double acc_cmd, double position_0, double velocity_0, double position_cmd, double velocity_cmd)
+// {
+//     if (cmd_log_index < log_buffer_size) {
+//         cmd_log_buffer[cmd_log_index][0] = cpp_time;
+//         cmd_log_buffer[cmd_log_index][1] = python_set_time;
+//         cmd_log_buffer[cmd_log_index][2] = acc_cmd;
+//         cmd_log_buffer[cmd_log_index][3] = position_0;
+//         cmd_log_buffer[cmd_log_index][4] = velocity_0;
+//         cmd_log_buffer[cmd_log_index][5] = position_cmd;
+//         cmd_log_buffer[cmd_log_index][6] = velocity_cmd;
+//         cmd_log_index++;
+//     } else {
+//         cmd_log_buffer[0][0] = cpp_time;
+//         cmd_log_buffer[0][1] = python_set_time;
+//         cmd_log_buffer[0][2] = acc_cmd;
+//         cmd_log_buffer[0][3] = position_0;
+//         cmd_log_buffer[0][4] = velocity_0;
+//         cmd_log_buffer[0][5] = position_cmd;
+//         cmd_log_buffer[0][6] = velocity_cmd;
+//         cmd_log_index = 1;
+//     }
+// }
+
+void save_log_to_file()
+{
+    // ロギング用のファイルストリーム
+    obs_log_file = fopen(obs_log_filepath, "w");
+
+    // 観測データのログをファイルに保存
+    cmd_log_file = fopen(cmd_log_filepath, "w");
+
+
+    for (int i = 0; i < obs_log_index; i++) {
+        fprintf(obs_log_file, "%.5f,%.5f,%.5f\n", obs_log_buffer[i][0], obs_log_buffer[i][1], obs_log_buffer[i][2]);
+    }
+    // 指令データのログをファイルに保存
+    for (int i = 0; i < cmd_log_index; i++) {
+        fprintf(cmd_log_file, "%.5f,%.5f,%.5f\n", cmd_log_buffer[i][0], cmd_log_buffer[i][1], cmd_log_buffer[i][2]);
+    }
+
+    // for (int i = 0; i < cmd_log_index; i++) {
+    //     cmd_log_file << cmd_log_buffer[i][0] << ","
+    //                  << cmd_log_buffer[i][1] << ","
+    //                  << cmd_log_buffer[i][2] << ","
+    //                  << cmd_log_buffer[i][3] << ","
+    //                  << cmd_log_buffer[i][4] << ","
+    //                  << cmd_log_buffer[i][5] << ","
+    //                  << cmd_log_buffer[i][6] << "\n";
+    // }
+    // ファイルを閉じる
+    fclose(obs_log_file);
+    fclose(cmd_log_file);
+    // cmd_log_file.close();
 }
 
 /*
@@ -128,22 +236,29 @@ void simpletest(char* ifname)
     needlf = FALSE;
     inOP = FALSE;
 
-    // clock_t st_clock[MOTOR_NUM] = {0}, end_clock[MOTOR_NUM] = {0};
     uint8 check[MOTOR_NUM];
-    bool recv_fin[MOTOR_NUM];
+    uint8 check_order[MOTOR_NUM];
+    volatile bool recv_fin[MOTOR_NUM];
     for (int i = 0; i < MOTOR_NUM; i++) {
         check[i] = 255;
+        check_order[i] = 0;
         recv_fin[i] = TRUE;
     }
     double time_count[MOTOR_NUM][NUM];
     int time_index[MOTOR_NUM] = {0};
-    int now_time[MOTOR_NUM] = {0};
+    // int now_time[MOTOR_NUM] = {0};
     double max_time[MOTOR_NUM] = {0};
     double min_time[MOTOR_NUM] = {0};
     double ave_time[MOTOR_NUM] = {0};
     double var_time[MOTOR_NUM] = {0};
     int over_num[MOTOR_NUM] = {0};
     int over_num2[MOTOR_NUM] = {0};
+
+    // uint8* data_prev[MOTOR_NUM];
+    // // int nodata[MOTOR_NUM] = {0};
+    // for (int i = 0; i < MOTOR_NUM; i++) {
+    //     data_prev[i] = calloc(14, sizeof(uint8));
+    // }
 
     printf("\033[2J\033[1;1H");  // 画面クリア
     printf("Starting simple test\n");
@@ -155,8 +270,6 @@ void simpletest(char* ifname)
 
 
         if (ec_config_init(FALSE) > 0) {
-            //FILE* fp;
-            // fp = fopen("data.csv", "w");
             printf("%d slaves found and configured.\n", ec_slavecount);
 
             if (forceByteAlignment) {
@@ -174,13 +287,13 @@ void simpletest(char* ifname)
             oloop = ec_slave[0].Obytes;
             if ((oloop == 0) && (ec_slave[0].Obits > 0))
                 oloop = 1;
-            if (oloop > 64)
-                oloop = 64;
+            if (oloop > 128)
+                oloop = 128;
             iloop = ec_slave[0].Ibytes;
             if ((iloop == 0) && (ec_slave[0].Ibits > 0))
                 iloop = 1;
-            if (iloop > 64)
-                iloop = 64;
+            if (iloop > 128)
+                iloop = 128;
 
             printf("segments : %d : %d %d %d %d\n", ec_group[0].nsegments, ec_group[0].IOsegment[0], ec_group[0].IOsegment[1], ec_group[0].IOsegment[2], ec_group[0].IOsegment[3]);
 
@@ -202,11 +315,27 @@ void simpletest(char* ifname)
                 ec_statecheck(0, EC_STATE_OPERATIONAL, 50000);
             } while (chk-- && (ec_slave[0].state != EC_STATE_OPERATIONAL));
             if (ec_slave[0].state == EC_STATE_OPERATIONAL) {
-                // printf("\nfdsjfakl\n");
-                // printf("\a");
                 printf("Operational state reached for all slaves.\n");
-                printf("hello");
-                // printf("\a");
+
+                // check the version id of the slave
+
+                const char vcheck[] = "vcheck";
+                ec_slave[1].outputs[15] = 0xcc;
+                int hash_check_cnt = 0;
+                do {
+                    ec_send_processdata();
+                    ec_receive_processdata(EC_TIMEOUTRET);
+                    hash_check_cnt++;
+                } while (strncmp(vcheck, ec_slave[1].inputs, sizeof(vcheck) / sizeof(vcheck[0])) != 0 && hash_check_cnt < 1000);
+
+                int verlen = ec_slave[1].inputs[sizeof(vcheck) / sizeof(vcheck[0])];
+                uint8_t* slave_ver;
+                slave_ver = (uint8_t*)malloc(verlen * sizeof(uint8_t));
+                memcpy(slave_ver, ec_slave[1].inputs + sizeof(vcheck) / sizeof(vcheck[0]) + 1, verlen);
+                printf("slave commit ID is %s\n", slave_ver);
+                ec_slave[1].outputs[15] = 0x00;
+                free(slave_ver);
+
                 printf("\033[10;1H");
                 printf("motor INFO");
                 printf("\033[%d;1H", MOTOR_NUM + 13);
@@ -218,47 +347,46 @@ void simpletest(char* ifname)
                 for (uint i = 0; i < MOTOR_NUM; i++) {
                     motor[i].recv = get_recv_pointer(i);
                 }
-                clock_t cyc_f = 0, cyc_f_pre = 0;
+                // clock_t cyc_f = 0, cyc_f_pre = 0;
+                // float tor = 0;
+                // float tor2 = 0;
+                struct timespec t_st[MOTOR_NUM], t_end[MOTOR_NUM], loop_st, loop_end;
+                volatile bool first_come[MOTOR_NUM] = {false};
+                uint8_t order_prev[15];
+                volatile int badcnt = 0;
+                volatile int goodcnt = 0;
                 float tor = 0;
-                float tor2 = 0;
-                struct timespec t_st[MOTOR_NUM], t_end[MOTOR_NUM];
+                float d_tor = 0.01;
+                int error_cnt = 0;
 
                 /* cyclic loop */
-                for (;;) {
-                    cyc_f = clock();
-                    // printf("\033[%d;1H", 30);
-                    double elapsedtime = (double)(cyc_f - cyc_f_pre) / CLOCKS_PER_SEC;
-                    // printf("%lf", elapsedtime);
-                    if (elapsedtime > 4.0) {
-                        cyc_f_pre = cyc_f;
-                        tor = 0;
-                        tor2 = 0;
-                    } else if (elapsedtime > 2.0) {
-                        // cyc_f_pre = cyc_f;
-                        tor = 0.048;
-                        tor2 = -0.048;
-                        tor = 0;
-                        tor2 = 0;
-                    }
+                for (int loop_cnt = 0; loop_cnt < NUM * 10; loop_cnt++) {
+                    clock_gettime(CLOCK_MONOTONIC, &loop_st);
                     for (int i = 0; i < MOTOR_NUM; i++) {
                         if (recv_fin[i]) {
                             recv_fin[i] = FALSE;
-                            motor[i].send[15] = check[i];
+                            memcpy(order_prev, motor[i].send, 15);
+                            check_order[i]++;
+                            if (check_order[i] >= 0xcc) {
+                                check_order[i] = 0;
+                            }
+                            motor[i].send[15] = check_order[i];
                             /*指令値セット*/
                             set_mode(1, motor[i].send);
-                            if (i == 1) {
-                                set_torque(tor, motor[i].send);
-                            } else {
-                                set_torque(tor2, motor[i].send);
+
+                            if (tor > 0.05 || tor < -0.05) {
+                                d_tor *= -1;
                             }
-                            // set_torque(tor, motor[i].send);
+                            tor += d_tor;
+                            set_torque(tor, motor[i].send);
                             set_speed(0, motor[i].send);
                             set_K_P(0, motor[i].send);
                             set_K_W(0, motor[i].send);
                             set_position(0, motor[i].send);
                             /***********************/
-                            // st_clock[i] = clock();
+
                             clock_gettime(CLOCK_MONOTONIC, &t_st[i]);
+
                             set_output(1, i, motor[i].send);
                         }
                     }
@@ -267,16 +395,59 @@ void simpletest(char* ifname)
                     wkc = ec_receive_processdata(EC_TIMEOUTRET);
                     if (wkc >= expectedWKC) {
                         for (int cnt = 0; cnt < MOTOR_NUM; cnt++) {
-                            if (check[cnt] == *(motor[cnt].recv + 14)) {
-                                // if (true) {
-                                // end_clock[cnt] = clock();
+                            // if (*(motor[cnt].recv + 14)) {
+                            if (*(motor[cnt].recv) == 255) {
+                                ++error_cnt;
+                            }
+                            if (*(motor[cnt].recv + 14) != check[cnt]) {
+                                printf("\033[%d;1H\033[0K", 20 + cnt);
+                                printf("%d", *(motor[cnt].recv + 14) - check[cnt]);
+                                /*
+                                if (*(motor[cnt].recv + 14) < check[cnt]) {
+                                    printf("cnt_num%d", *(motor[cnt].recv + 14) - check[cnt] + 255);
+                                } else {
+                                    printf("cnt_num%d", *(motor[cnt].recv + 14) - check[cnt]);
+                                }
+                                */
+
+                                //if (memcmp(data_prev[cnt], motor[cnt].recv, 14 * sizeof(uint8)) == 0) {
+                                // printf("\033[%d;1H\033[0K", 31 + cnt);
+                                // printf("id %d no change %d\n", cnt, nodata[cnt]++);
+                                // continue;
+                                //}
+
+
+                                if (memcmp(order_prev, motor[cnt].recv + 15, 15 * sizeof(uint8)) != 0) {
+                                    badcnt++;
+                                    printf("\033[%d;1H\033[0K", 40 + cnt);
+                                    // for(int j = 0; j <15;j++){
+                                    // printf("%2x %2x %2lf\n", *(motor[cnt].recv + 16), order_prev[1], d_tor);
+                                    //}
+                                    /*
+                                    if (d_tor > 0) {
+                                        if (order_prev[1] > *(motor[cnt].recv + 16)) {
+                                            printf("PC  fast+\n");
+                                        } else {
+                                            printf("stm fast+\n");
+                                        }
+                                    } else if (d_tor < 0) {
+                                        if (order_prev[1] < *(motor[cnt].recv + 16)) {
+                                            printf("PC  fast-\n");
+                                        } else {
+                                            printf("stm fast-\n");
+                                        }
+                                    }
+                                    */
+                                } else {
+                                    goodcnt++;
+                                }
+                                // printf("\033[%d;1H\033[0K", 38 + cnt);
+                                // printf("incorrect %d correct %d\n", badcnt, goodcnt);
+
+                                // memcpy(data_prev[cnt], motor[cnt].recv, 14 * sizeof(uint8));
+                                check[cnt] = *(motor[cnt].recv + 14);
                                 clock_gettime(CLOCK_MONOTONIC, &t_end[cnt]);
                                 recv_fin[cnt] = TRUE;
-                                if (check[cnt] == 0) {
-                                    check[cnt] = 255;
-                                } else {
-                                    check[cnt]--;
-                                }
                                 /*
                                     受信データ表示
                                     id      :モータナンバー(unitreeのidとは違うもの)
@@ -286,50 +457,63 @@ void simpletest(char* ifname)
                                     temp    :温度
                                 */
                                 if (check_CRC(motor[cnt].recv)) {  // CRCチェック
-                                    printf("\033[%d;1H", cnt + 12);
                                     char message[20];
-                                    printf("\033[0K");
                                     /*フィードバック値表示*/
-                                    printf("id: %2d, torque: %10.6lf(Nm), anglevel: %12.6lf(rad/s), angle: %12.6lf(rad), temp: %3d℃ , error: %s\n", cnt, get_torque(motor[cnt].recv), get_angular_vel(motor[cnt].recv), get_position(motor[cnt].recv), get_temp(motor[cnt].recv), check_err(motor[cnt].recv, message));
-                                    printf("\033[%d;1H\033[0K", MOTOR_NUM + 12 + cnt);
-                                    // time_count[cnt][time_index[cnt]] = (double)(end_clock[cnt] - st_clock[cnt]) / CLOCKS_PER_SEC * 1000;
+                                    //printf("\033[%d;1H\033[0K", cnt + 12);
+                                    //printf("id: %2d, torque: %10.6lf(Nm), anglevel: %12.6lf(rad/s), angle: %12.6lf(rad), temp: %3d℃ , error: %s\n", cnt, get_torque(motor[cnt].recv), get_angular_vel(motor[cnt].recv), get_position(motor[cnt].recv), get_temp(motor[cnt].recv), check_err(motor[cnt].recv, message));
+                                    //printf("\033[%d;1H\033[0K", MOTOR_NUM + 15 + cnt);
+                                    //printf("id: %2d, ave %8.6fms ,var %8.6fms ,max %8.6fms ,min %8.6fms ,over ratio(%4.1lfkHz) %4.1f %% ,over ratio(%4.1lfkHz) %4.1f %%\n", cnt, ave_time[cnt], var_time[cnt], max_time[cnt], min_time[cnt], 1.0 / (float)TH, (float)over_num[cnt] / (float)NUM * 100.0, 1.0 / (float)TH2, (float)over_num2[cnt] / (float)NUM * 100.0);
                                     time_count[cnt][time_index[cnt]] = (double)(t_end[cnt].tv_nsec - t_st[cnt].tv_nsec) / 1000000;
                                     if (time_count[cnt][time_index[cnt]] < 0) {
                                         time_count[cnt][time_index[cnt]] += 1000;
                                     }
-                                    now_time[cnt] = time_index[cnt];
+                                    // now_time[cnt] = time_index[cnt];
                                     time_index[cnt]++;
                                     if (time_index[cnt] == NUM) {
                                         time_index[cnt] = 0;
                                         mesure(time_count[cnt], &(ave_time[cnt]), &(var_time[cnt]), &(max_time[cnt]), &(over_num[cnt]), &over_num2[cnt], &min_time[cnt]);
+                                        /*フィードバック値表示*/
+                                        printf("\033[%d;1H\033[0K", cnt + 12);
+                                        printf("id: %2d, torque: %10.6lf(Nm), anglevel: %12.6lf(rad/s), angle: %12.6lf(rad), temp: %3d℃ , error: %s\n", cnt, get_torque(motor[cnt].recv), get_angular_vel(motor[cnt].recv), get_position(motor[cnt].recv), get_temp(motor[cnt].recv), check_err(motor[cnt].recv, message));
+                                        /*計測時間表示*/
+                                        printf("\033[%d;1H\033[0K", MOTOR_NUM + 15 + cnt);
+                                        printf("id: %2d, ave %8.6fms ,var %8.6fms ,max %8.6fms ,min %8.6fms ,over ratio(%4.1lfkHz) %4.1f %% ,over ratio(%4.1lfkHz) %4.1f %%\n", cnt, ave_time[cnt], var_time[cnt], max_time[cnt], min_time[cnt], 1.0 / (float)TH, (float)over_num[cnt] / (float)NUM * 100.0, 1.0 / (float)TH2, (float)over_num2[cnt] / (float)NUM * 100.0);
+                                        printf("\033[%d;1H\033[0K", 38 + cnt);
+                                        printf("incorrect %d correct %d\n", badcnt, goodcnt);
+                                        printf("rs485 %d0us", motor[cnt].recv[31]);
                                     }
                                 } else {
-                                    printf("\033[%d;1H", MOTOR_NUM + 12 + cnt);
-                                    printf("id %d CRC_error", cnt);
-                                    printf("\a");
-                                    check[cnt]++;
+                                    if (first_come[cnt]) {
+                                        printf("\033[%d;1H\033[0K", 12 + cnt);
+                                        printf("id %d CRC_error", cnt);
+                                    } else {
+                                        first_come[cnt] = true;
+                                    }
                                 }
                             }
-                        }
-
-                        /*計測時間表示*/
-                        for (int cnt = 0; cnt < MOTOR_NUM; cnt++) {
-                            printf("\033[%d;1H", MOTOR_NUM + 15 + cnt);
-                            printf("\033[0K");
-                            printf("id %d: time %fms ,", cnt, time_count[cnt][now_time[cnt]]);
-                            // printf("ave %8.6fms ,var %8.6fms ,max %8.6fms ,over_num(4kHz) %2d ,over ratio(4kHz) %7.4f %% ,over_num(6kHz) %2d ,over ratio(6kHz) %7.4f %%\n", ave_time[cnt], var_time[cnt], max_time[cnt], over_num[cnt], (float)over_num[cnt] / (float)NUM * 100.0, over_num2[cnt], (float)over_num2[cnt] / (float)NUM * 100);
-                            printf("ave %8.6fms ,var %8.6fms ,max %8.6fms ,min %8.6fms ,over ratio(%5.2lfkHz) %7.4f %% ,over ratio(%5.2lfkHz) %7.4f %%\n", ave_time[cnt], var_time[cnt], max_time[cnt], min_time[cnt], 1.0 / (float)TH, (float)over_num[cnt] / (float)NUM * 100.0, 1.0 / (float)TH2, (float)over_num2[cnt] / (float)NUM * 100.0);
+                            log_obs_data(get_torque(motor[cnt].recv), get_position(motor[cnt].recv), get_angular_vel(motor[cnt].recv));
                         }
                         needlf = TRUE;
+
                     } else {
-                        printf("wkc error\n");
+                        static int i = 0;
+                        printf("\033[40;1H%2d ", wkc);
+                        printf("wkc error %3d\n", i);
+                        i++;
+                        if (i > 256) {
+                            i = 0;
+                        }
                     }
-                    // osal_usleep(1000);
-                    // osal_usleep(70);
-                    // osal_usleep(50);
-                    // osal_usleep(30);
+                    osal_usleep(150);
+                    clock_gettime(CLOCK_MONOTONIC, &loop_end);
+                    double loop_time = (double)(loop_end.tv_nsec - loop_st.tv_nsec) / 1000000;
+                    printf("\033[%d;1H\033[0K", 45);
+                    printf("looptime %lf(ms)", loop_time);
+                    printf("error cnt %d", error_cnt);
+                    log_cmd_data(loop_time, get_torque(order_prev), get_torque(motor[0].recv + 15));
                 }
                 inOP = FALSE;
+                save_log_to_file();
             } else {
                 printf("Not all slaves reached operational state.\n");
                 ec_readstate();
@@ -350,6 +534,9 @@ void simpletest(char* ifname)
         printf("End simple test, close socket\n");
         /* stop SOEM, close socket */
         ec_close();
+        // for (int i = 0; i < MOTOR_NUM; i++) {
+        //     free(data_prev[i]);
+        // }
     } else {
         printf("No socket connection on %s\nExecute as root\n", ifname);
     }

@@ -244,6 +244,7 @@ void simpletest(char* ifname)
 
     // clock_t st_clock[MOTOR_NUM] = {0}, end_clock[MOTOR_NUM] = {0};
     uint8 check[MOTOR_NUM];
+    uint8 check_order[MOTOR_NUM];
     bool recv_fin[MOTOR_NUM];
     for (int i = 0; i < MOTOR_NUM; i++) {
         check[i] = 255;
@@ -322,6 +323,7 @@ void simpletest(char* ifname)
             if (ec_slave[0].state == EC_STATE_OPERATIONAL) {
                 // printf("\nfdsjfakl\n");
                 // printf("\a");
+		ec_slave[1].outputs[15] = 0x00;
                 printf("Operational state reached for all SLAVEs.\n");
                 // printf("\a");
                 //printf("\033[10;1H");
@@ -348,7 +350,13 @@ void simpletest(char* ifname)
                     for (int i = 0; i < MOTOR_NUM; i++) {
 		                if (recv_fin[i]) {
 			                recv_fin[i] = FALSE;
-                            motor[i].send[15] = check[i];
+                            //motor[i].send[15] = check[i];
+			    //memcpy(order_prev, motor[i].send, 15);
+                            check_order[i]++;
+                            if (check_order[i] >= 0xcc) {
+                                check_order[i] = 0;
+                            }
+                            motor[i].send[15] = check_order[i];
                             double torque_control = single_gomotor_command_shared[TORQUE_CMD_IDX*MOTOR_NUM + i];
                             double target_pos = single_gomotor_command_shared[POSITION_TARGET_IDX*MOTOR_NUM + i];
                             double target_vel = single_gomotor_command_shared[VELOCITY_TARGET_IDX*MOTOR_NUM + i];
@@ -435,16 +443,19 @@ void simpletest(char* ifname)
                     wkc = ec_receive_processdata(EC_TIMEOUTRET);
                     if (wkc >= expectedWKC) {
                         for (int cnt = 0; cnt < MOTOR_NUM; cnt++) {
-			                if (check[cnt] == *(motor[cnt].recv + 14)) {
+			                if (check[cnt] != *(motor[cnt].recv + 14)) {
 			                // if (true) {
                                 // end_clock[cnt] = clock();
+			        check[cnt] = *(motor[cnt].recv + 14);
                                 clock_gettime(CLOCK_MONOTONIC, &t_end[cnt]);
                                 recv_fin[cnt] = TRUE;
+				/*
                                 if (check[cnt] == 0) {
                                     check[cnt] = 255;
                                 } else {
                                     check[cnt]--;
                                 }
+				*/
                                 /* 受信データ表示
                                     id      :モータナンバー(unitreeのidとは違うもの)
                                     torque  :トルク
@@ -485,7 +496,7 @@ void simpletest(char* ifname)
                                     printf("\033[%d;1H", MOTOR_NUM + 12 + cnt);
                                     printf("id %d CRC_error", cnt);
                                     printf("\a");
-                                    check[cnt]++;
+                                    //check[cnt]++;
                                 }
 			                }
                         } // End of for (int cnt = 0; cnt < MOTOR_NUM; cnt++)
@@ -540,7 +551,8 @@ void simpletest(char* ifname)
         for (int i = 0; i < MOTOR_NUM; i++) {
           if (recv_fin[i]) {
             recv_fin[i] = FALSE;
-            motor[i].send[15] = check[i];
+            //motor[i].send[15] = check[i];
+	    //check
             /*指令値セット*/
             set_mode(1, motor[i].send);
             set_torque(0, motor[i].send);
