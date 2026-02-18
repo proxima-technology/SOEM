@@ -8,6 +8,17 @@ uint8* get_recv_pointer(uint8 motor_id)
     return ec_slave[1].inputs + motor_id * 15;
 }
 
+// g_tim6_irq_countを変換
+uint32_t get_g_tim6_irq_count(uint8* motor_data)
+{
+    // g_tim6_irq_countはu_int_32データ型で以下でmotor_data[0]～motor_data[3]に格納される
+    // m_cat_in[0] = (g_tim6_irq_count >> 24) & 0xFF;
+    // m_cat_in[1] = (g_tim6_irq_count >> 16) & 0xFF;
+    // m_cat_in[2] = (g_tim6_irq_count >> 8) & 0xFF;
+    // m_cat_in[3] = g_tim6_irq_count & 0xFF;
+    return (uint32_t)(motor_data[0] << 24 | motor_data[1] << 16 | motor_data[2] << 8 | motor_data[3]);
+}
+
 /*トルク取得関数*/
 double get_torque(uint8* motor_data)
 {

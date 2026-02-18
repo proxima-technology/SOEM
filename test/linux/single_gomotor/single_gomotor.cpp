@@ -436,6 +436,13 @@ void simpletest(char* ifname)
                     if (wkc >= expectedWKC) {
                         for (int cnt = 0; cnt < MOTOR_NUM; cnt++) {
 			                if (check[cnt] == *(motor[cnt].recv + 14)) {
+                                uint32_t g_tim6_irq_count = get_g_tim6_irq_count(motor[cnt].recv);
+                                printf("\033[%d;1H", monitoring_print_cursor + cnt);
+                                printf("\033[0K");
+                                printf("check %u: g_tim6_irq_count %u\n", check[cnt], g_tim6_irq_count);
+                                printf("0: %u, 1: %u, 2: %u, 3: %u ,\n", motor[cnt].recv[0], motor[cnt].recv[1],
+                                motor[cnt].recv[2], motor[cnt].recv[3]);
+                                // printf("\033[0K");
 			                // if (true) {
                                 // end_clock[cnt] = clock();
                                 clock_gettime(CLOCK_MONOTONIC, &t_end[cnt]);
@@ -480,13 +487,13 @@ void simpletest(char* ifname)
                                         mesure(time_count[cnt], &(ave_time[cnt]), &(var_time[cnt]), &(max_time[cnt]), &(over_num[cnt]), &over_num2[cnt], &min_time[cnt]);
                                     }
                                 }
-                                else
-                                {
-                                    printf("\033[%d;1H", MOTOR_NUM + 12 + cnt);
-                                    printf("id %d CRC_error", cnt);
-                                    printf("\a");
-                                    check[cnt]++;
-                                }
+                                // else
+                                // {
+                                    // printf("\033[%d;1H", MOTOR_NUM + 12 + cnt);
+                                    // printf("id %d CRC_error", cnt);
+                                    // printf("\a");
+                                    // check[cnt]++;
+                                // }
 			                }
                         } // End of for (int cnt = 0; cnt < MOTOR_NUM; cnt++)
                         proc_comm_sensor->write_stdvec(single_gomotor_sensor_shared);
