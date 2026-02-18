@@ -94,7 +94,7 @@ void set_output(uint16 slave_no, uint8 module_index, uint8* value)
 void set_init()
 {
     /*RS485通信で使うidの変更*/
-    set_id(1, motor[0].send);
+    set_id(0, motor[0].send);
     //set_id(1, motor[1].send);
     //set_id(0, motor[2].send);
 
@@ -437,11 +437,9 @@ void simpletest(char* ifname)
                         for (int cnt = 0; cnt < MOTOR_NUM; cnt++) {
 			                if (check[cnt] == *(motor[cnt].recv + 14)) {
                                 uint32_t g_tim6_irq_count = get_g_tim6_irq_count(motor[cnt].recv);
-                                printf("\033[%d;1H", monitoring_print_cursor + cnt);
+                                printf("\033[%d;1H", monitoring_print_cursor + 2);
                                 printf("\033[0K");
                                 printf("check %u: g_tim6_irq_count %u\n", check[cnt], g_tim6_irq_count);
-                                printf("0: %u, 1: %u, 2: %u, 3: %u ,\n", motor[cnt].recv[0], motor[cnt].recv[1],
-                                motor[cnt].recv[2], motor[cnt].recv[3]);
                                 // printf("\033[0K");
 			                // if (true) {
                                 // end_clock[cnt] = clock();
@@ -512,7 +510,9 @@ void simpletest(char* ifname)
                     } // End of if (wkc >= expectedWKC)
                     else
                     {
-                        printf("wkc error\n");
+                        printf("\033[%d;1H", monitoring_print_cursor + 4);
+                        printf("\033[0K");
+                        printf("wkc error %d\n", wkc);
                     }
                     if (0==keepRunning) break;
                     // osal_usleep(50);
