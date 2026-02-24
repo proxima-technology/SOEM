@@ -233,6 +233,12 @@ void mesure(double* dat, double* ave, double* var, double* max, int* overcnt, in
     *var = sum / NUM;
 }
 
+int get_time_us() {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return ts.tv_nsec/1000;
+}
+
 /*
     ethercat通信するスレッド
 */
@@ -258,6 +264,19 @@ void simpletest(char* ifname)
     double var_time[MOTOR_NUM] = {0};
     int over_num[MOTOR_NUM] = {0};
     int over_num2[MOTOR_NUM] = {0};
+
+    // 時間の詳細な計測
+    int cycle_num = 0;
+    int buf_size = 20000;
+    uint8 check_buf[2][buf_size][MOTOR_NUM] = {}; // check_order, check
+    int time_buf[3][buf_size][MOTOR_NUM] = {}; // start_time, end_time, elapsed_time
+    int cycle_start_us;
+    int cycle_end_us;
+
+    // 正弦波信号
+    double acc_amplitude = 1.5;
+    double acc_frequency = 5.0; // 振動数
+    double control_start_clock;
 
     printf("\033[2J\033[1;1H");  // 画面クリア
     printf("Starting single gomotor\n");
@@ -341,6 +360,7 @@ void simpletest(char* ifname)
                 struct timespec t_st[MOTOR_NUM], t_end[MOTOR_NUM];
                 /* cyclic loop */
                 for (;;) {
+                    cycle_start_us = get_time_us();
                     cyc_f = clock();
                     //printf("\033[%d;1H", 30);
                     double elapsedtime = (double)(cyc_f - cyc_f_pre) / CLOCKS_PER_SEC;
@@ -354,9 +374,12 @@ void simpletest(char* ifname)
                             double target_vel = single_gomotor_command_shared[VELOCITY_TARGET_IDX*MOTOR_NUM + i];
                             double kp = single_gomotor_command_shared[P_GAIN_IDX*MOTOR_NUM + i];
                             double kd = single_gomotor_command_shared[D_GAIN_IDX*MOTOR_NUM + i];
+                            kp = 16.0;
+                            kd = 1.2;
 
                             #if USE_ACCELELERATION_TARGET_FLAG
                             double shm_acc_set_time_ctrl_clock = single_gomotor_command_shared[ACCELERATION_SET_CLOCK_TIME_IDX*MOTOR_NUM + i];
+                            shm_acc_set_time_ctrl_clock = cycle_start_us/1000000.0;
                             //
                             if(std::abs(shm_acc_set_time_ctrl_clock)>1e-8)
                             {
@@ -365,7 +388,11 @@ void simpletest(char* ifname)
                                 struct timespec ts_now;
                                 clock_gettime(CLOCK_MONOTONIC, &ts_now);
                                 double tmp_soem_clock = ts_now.tv_sec + 0.000000001*ts_now.tv_nsec;
+                                if (cycle_num == 0) {
+                                    control_start_clock = tmp_soem_clock;
+                                }
                                 double target_acc = single_gomotor_command_shared[ACCELERATION_TARGET_IDX*MOTOR_NUM + i];
+                                target_acc = acc_amplitude * sin(2.0*M_PI*acc_frequency*(tmp_soem_clock - control_start_clock));
                                 // check if acc_set_time is updated
                                 if(std::abs(last_acc_set_time_ctrl_clock[i] - shm_acc_set_time_ctrl_clock)>1e-5)
                                 {
@@ -430,16 +457,22 @@ void simpletest(char* ifname)
                             set_output(1, i, motor[i].send);
                             #endif
                         }
+                        if (cycle_num < buf_size) {
+                            check_buf[0][cycle_num][i] = check[i];
+                        }
 		            }
                     ec_send_processdata();
                     wkc = ec_receive_processdata(EC_TIMEOUTRET);
                     if (wkc >= expectedWKC) {
                         for (int cnt = 0; cnt < MOTOR_NUM; cnt++) {
+                            if (cycle_num < buf_size) {
+                                check_buf[1][cycle_num][cnt] = *(motor[cnt].recv + 14);
+                            }
 			                if (check[cnt] == *(motor[cnt].recv + 14)) {
-                                uint32_t g_tim6_irq_count = get_g_tim6_irq_count(motor[cnt].recv);
-                                printf("\033[%d;1H", monitoring_print_cursor + 2);
-                                printf("\033[0K");
-                                printf("check %u: g_tim6_irq_count %u\n", check[cnt], g_tim6_irq_count);
+                                // uint32_t g_tim6_irq_count = get_g_tim6_irq_count(motor[cnt].recv);
+                                // printf("\033[%d;1H", monitoring_print_cursor + 2);
+                                // printf("\033[0K");
+                                // printf("check %u: g_tim6_irq_count %u\n", check[cnt], g_tim6_irq_count);
                                 // printf("\033[0K");
 			                // if (true) {
                                 // end_clock[cnt] = clock();
@@ -485,13 +518,13 @@ void simpletest(char* ifname)
                                         mesure(time_count[cnt], &(ave_time[cnt]), &(var_time[cnt]), &(max_time[cnt]), &(over_num[cnt]), &over_num2[cnt], &min_time[cnt]);
                                     }
                                 }
-                                // else
-                                // {
+                                else
+                                {
                                     // printf("\033[%d;1H", MOTOR_NUM + 12 + cnt);
-                                    // printf("id %d CRC_error", cnt);
+                                    printf("cycle %d, id %d CRC_error", cycle_num, cnt);
                                     // printf("\a");
                                     // check[cnt]++;
-                                // }
+                                }
 			                }
                         } // End of for (int cnt = 0; cnt < MOTOR_NUM; cnt++)
                         proc_comm_sensor->write_stdvec(single_gomotor_sensor_shared);
@@ -516,9 +549,40 @@ void simpletest(char* ifname)
                     }
                     if (0==keepRunning) break;
                     // osal_usleep(50);
+                    cycle_end_us = get_time_us();
+                    if (cycle_num < buf_size) {
+                        for (int cnt = 0; cnt < MOTOR_NUM; cnt++) {
+                            time_buf[0][cycle_num][cnt] = cycle_start_us;
+                            time_buf[1][cycle_num][cnt] = cycle_end_us;
+                            time_buf[2][cycle_num][cnt] = cycle_end_us - cycle_start_us;
+                        }
+                        cycle_num++;
+                    } else if (cycle_num == buf_size) {
+                        
+                        for (int cnt = 0; cnt < MOTOR_NUM; cnt++) {
+                            std::ofstream logging_file("ethercat_master_logging.csv");
+                            logging_file << "cycle" << ","
+                                        << "check_order" << ","
+                                        << "check(slave)" << ","
+                                        << "cycle_start_us" << ","
+                                        << "cycle_end_us" << ","
+                                        << "cycle_elapsed_us" << "\n";
+                            for (int i = 0; i < buf_size; i++) {
+                                logging_file << i << ","
+                                            << static_cast<int>(check_buf[0][i][cnt]) << ","
+                                            << static_cast<int>(check_buf[1][i][cnt]) << ","
+                                            << time_buf[0][i][cnt] << ","
+                                            << time_buf[1][i][cnt] << ","
+                                            << time_buf[2][i][cnt] << "\n";
+                            }
+                            logging_file.close();
+                        }
+                        save_log_to_file();
+                        cycle_num++;
+                    }
                 } // End of cyclic loop
                 inOP = FALSE;
-                save_log_to_file();
+                // save_log_to_file();
             } // End of if (ec_slave[0].state == EC_STATE_OPERATIONAL)
             else
             {
