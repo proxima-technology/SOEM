@@ -95,7 +95,7 @@ void set_output(uint16 slave_no, uint8 module_index, uint8* value)
 void set_init()
 {
     /*RS485通信で使うidの変更*/
-    set_id(0, motor[0].send);
+    set_id(1, motor[0].send);
     //set_id(1, motor[1].send);
     //set_id(0, motor[2].send);
 
@@ -271,15 +271,15 @@ void simpletest(char* ifname)
     // 時間の詳細な計測
     int cycle_num = 0;
     int buf_size = 20000;
-    uint8 check_buf[2][buf_size][MOTOR_NUM] = {}; // check_order, check
-    int time_buf[3][buf_size][MOTOR_NUM] = {}; // start_time, end_time, elapsed_time
+    uint8 check_buf[2][buf_size][MOTOR_NUM] = {0}; // check_order, check
+    int time_buf[3][buf_size][MOTOR_NUM] = {0}; // start_time, end_time, elapsed_time
     int cycle_start_us;
     int cycle_end_us;
 
     // 正弦波信号
-    double acc_amplitude = 1.5;
-    double acc_frequency = 5.0; // 振動数
-    double control_start_clock;
+    // double acc_amplitude = 1.5;
+    // double acc_frequency = 5.0; // 振動数
+    // double control_start_clock;
 
     printf("\033[2J\033[1;1H");  // 画面クリア
     printf("Starting single gomotor\n");
@@ -370,8 +370,9 @@ void simpletest(char* ifname)
                     double elapsedtime = (double)(cyc_f - cyc_f_pre) / CLOCKS_PER_SEC;
                     single_gomotor_command_shared = proc_comm_command->read_stdvec();
                     for (int i = 0; i < MOTOR_NUM; i++) {
-		                if (recv_fin[i]) {
-			                recv_fin[i] = FALSE;
+			    if (true) {
+		                //if (recv_fin[i]) {
+			                //recv_fin[i] = FALSE;
                             //motor[i].send[15] = check[i];
 			                //memcpy(order_prev, motor[i].send, 15);
                             check_order[i]++;
@@ -384,12 +385,12 @@ void simpletest(char* ifname)
                             double target_vel = single_gomotor_command_shared[VELOCITY_TARGET_IDX*MOTOR_NUM + i];
                             double kp = single_gomotor_command_shared[P_GAIN_IDX*MOTOR_NUM + i];
                             double kd = single_gomotor_command_shared[D_GAIN_IDX*MOTOR_NUM + i];
-                            kp = 16.0;
-                            kd = 1.2;
+                            // kp = 16.0;
+                            // kd = 1.2;
 
                             #if USE_ACCELELERATION_TARGET_FLAG
                             double shm_acc_set_time_ctrl_clock = single_gomotor_command_shared[ACCELERATION_SET_CLOCK_TIME_IDX*MOTOR_NUM + i];
-                            shm_acc_set_time_ctrl_clock = cycle_start_us/1000000.0;
+                            // shm_acc_set_time_ctrl_clock = cycle_start_us/1000000.0;
                             //
                             if(std::abs(shm_acc_set_time_ctrl_clock)>1e-8)
                             {
@@ -398,11 +399,11 @@ void simpletest(char* ifname)
                                 struct timespec ts_now;
                                 clock_gettime(CLOCK_MONOTONIC, &ts_now);
                                 double tmp_soem_clock = ts_now.tv_sec + 0.000000001*ts_now.tv_nsec;
-                                if (cycle_num == 0) {
-                                    control_start_clock = tmp_soem_clock;
-                                }
+                                //if (cycle_num == 0) {
+                                //    control_start_clock = tmp_soem_clock;
+                                //}
                                 double target_acc = single_gomotor_command_shared[ACCELERATION_TARGET_IDX*MOTOR_NUM + i];
-                                target_acc = acc_amplitude * sin(2.0*M_PI*acc_frequency*(tmp_soem_clock - control_start_clock));
+                                // target_acc = acc_amplitude * sin(2.0*M_PI*acc_frequency*(tmp_soem_clock - control_start_clock));
                                 // check if acc_set_time is updated
                                 if(std::abs(last_acc_set_time_ctrl_clock[i] - shm_acc_set_time_ctrl_clock)>1e-5)
                                 {
@@ -507,14 +508,14 @@ void simpletest(char* ifname)
                                     single_gomotor_sensor_shared[TEMPERATURE_OBS_IDX*MOTOR_NUM + cnt] = get_temp(motor[cnt].recv);
                                     single_gomotor_sensor_shared[OBS_GET_CLOCK_TIME_IDX*MOTOR_NUM + cnt] = t_end[cnt].tv_sec + 0.000000001*t_end[cnt].tv_nsec;
 				                    {
-                                        // printf("\033[%d;1H", cnt + monitoring_print_cursor);
-                                        // char message[20];
-                                        // printf("\033[0K");
-                                        // printf("id: %2d, angle: %12.6lf(rad), anglevel: %12.6lf(rad/s), torque: %10.6lf(Nm), temp: %3f℃ , error: %s\n", cnt,
-                                        // single_gomotor_sensor_shared[POSITION_OBS_IDX*MOTOR_NUM + cnt], single_gomotor_sensor_shared[VELOCITY_OBS_IDX*MOTOR_NUM + cnt], single_gomotor_sensor_shared[TORQUE_OBS_IDX*MOTOR_NUM + cnt], single_gomotor_sensor_shared[TEMPERATURE_OBS_IDX*MOTOR_NUM + cnt],
-                                        // check_err(motor[cnt].recv, message));
-                                        // printf("\033[%d;1H", cnt + monitoring_print_cursor + MOTOR_NUM);
-                                        // printf("\033[0K");
+                                        printf("\033[%d;1H", cnt + monitoring_print_cursor);
+                                        char message[20];
+                                        printf("\033[0K");
+                                        printf("id: %2d, angle: %12.6lf(rad), anglevel: %12.6lf(rad/s), torque: %10.6lf(Nm), temp: %3f℃ , error: %s\n", cnt,
+                                        single_gomotor_sensor_shared[POSITION_OBS_IDX*MOTOR_NUM + cnt], single_gomotor_sensor_shared[VELOCITY_OBS_IDX*MOTOR_NUM + cnt], single_gomotor_sensor_shared[TORQUE_OBS_IDX*MOTOR_NUM + cnt], single_gomotor_sensor_shared[TEMPERATURE_OBS_IDX*MOTOR_NUM + cnt],
+                                        check_err(motor[cnt].recv, message));
+                                        printf("\033[%d;1H", cnt + monitoring_print_cursor + MOTOR_NUM);
+                                        printf("\033[0K");
 				                    }
                                     time_count[cnt][time_index[cnt]] = (double)(t_end[cnt].tv_nsec - t_st[cnt].tv_nsec) / 1000000;
                                     if (time_count[cnt][time_index[cnt]] < 0) {
@@ -566,30 +567,30 @@ void simpletest(char* ifname)
                         cycle_num++;
                     } else if (cycle_num == buf_size) {
                         
-                        for (int cnt = 0; cnt < MOTOR_NUM; cnt++) {
-                            std::ofstream logging_file("ethercat_logging.csv");
-                            logging_file << "cycle" << ","
-                                        << "check_order" << ","
-                                        << "check(slave)" << ","
-                                        << "cycle_start_us" << ","
-                                        << "cycle_end_us" << ","
-                                        << "cycle_elapsed_us" << "\n";
-                            for (int i = 0; i < buf_size; i++) {
-                                logging_file << i << ","
-                                            << static_cast<int>(check_buf[0][i][cnt]) << ","
-                                            << static_cast<int>(check_buf[1][i][cnt]) << ","
-                                            << time_buf[0][i][cnt] << ","
-                                            << time_buf[1][i][cnt] << ","
-                                            << time_buf[2][i][cnt] << "\n";
-                            }
-                            logging_file.close();
-                        }
-                        save_log_to_file();
+                        // for (int cnt = 0; cnt < MOTOR_NUM; cnt++) {
+                        //     std::ofstream logging_file("ethercat_logging.csv");
+                        //    logging_file << "cycle" << ","
+                        //                << "check_order" << ","
+                        //                << "check(slave)" << ","
+                        //                << "cycle_start_us" << ","
+                        //                << "cycle_end_us" << ","
+                        //                << "cycle_elapsed_us" << "\n";
+                        //    for (int i = 0; i < buf_size; i++) {
+                        //        logging_file << i << ","
+                        //                    << static_cast<int>(check_buf[0][i][cnt]) << ","
+                        //                    << static_cast<int>(check_buf[1][i][cnt]) << ","
+                        //                    << time_buf[0][i][cnt] << ","
+                        //                    << time_buf[1][i][cnt] << ","
+                        //                    << time_buf[2][i][cnt] << "\n";
+                        //    }
+                        //    logging_file.close();
+                        //}
+                        //save_log_to_file();
                         cycle_num++;
                     }
                 } // End of cyclic loop
                 inOP = FALSE;
-                // save_log_to_file();
+                save_log_to_file();
             } // End of if (ec_slave[0].state == EC_STATE_OPERATIONAL)
             else
             {
