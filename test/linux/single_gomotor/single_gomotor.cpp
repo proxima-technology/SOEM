@@ -94,7 +94,7 @@ void set_output(uint16 slave_no, uint8 module_index, uint8* value)
 void set_init()
 {
     /*RS485通信で使うidの変更*/
-    set_id(0, motor[0].send);
+    set_id(1, motor[0].send);
     //set_id(1, motor[1].send);
     //set_id(0, motor[2].send);
 
@@ -268,15 +268,15 @@ void simpletest(char* ifname)
     // 時間の詳細な計測
     int cycle_num = 0;
     int buf_size = 20000;
-    uint8 check_buf[2][buf_size][MOTOR_NUM] = {}; // check_order, check
-    int time_buf[3][buf_size][MOTOR_NUM] = {}; // start_time, end_time, elapsed_time
+    uint8 check_buf[2][buf_size][MOTOR_NUM] = {0}; // check_order, check
+    int time_buf[3][buf_size][MOTOR_NUM] = {0}; // start_time, end_time, elapsed_time
     int cycle_start_us;
     int cycle_end_us;
 
     // 正弦波信号
-    double acc_amplitude = 1.5;
-    double acc_frequency = 5.0; // 振動数
-    double control_start_clock;
+    // double acc_amplitude = 1.5;
+    // double acc_frequency = 5.0; // 振動数
+    // double control_start_clock;
 
     printf("\033[2J\033[1;1H");  // 画面クリア
     printf("Starting single gomotor\n");
@@ -374,12 +374,12 @@ void simpletest(char* ifname)
                             double target_vel = single_gomotor_command_shared[VELOCITY_TARGET_IDX*MOTOR_NUM + i];
                             double kp = single_gomotor_command_shared[P_GAIN_IDX*MOTOR_NUM + i];
                             double kd = single_gomotor_command_shared[D_GAIN_IDX*MOTOR_NUM + i];
-                            kp = 16.0;
-                            kd = 1.2;
+                            // kp = 16.0;
+                            // kd = 1.2;
 
                             #if USE_ACCELELERATION_TARGET_FLAG
                             double shm_acc_set_time_ctrl_clock = single_gomotor_command_shared[ACCELERATION_SET_CLOCK_TIME_IDX*MOTOR_NUM + i];
-                            shm_acc_set_time_ctrl_clock = cycle_start_us/1000000.0;
+                            // shm_acc_set_time_ctrl_clock = cycle_start_us/1000000.0;
                             //
                             if(std::abs(shm_acc_set_time_ctrl_clock)>1e-8)
                             {
@@ -388,11 +388,11 @@ void simpletest(char* ifname)
                                 struct timespec ts_now;
                                 clock_gettime(CLOCK_MONOTONIC, &ts_now);
                                 double tmp_soem_clock = ts_now.tv_sec + 0.000000001*ts_now.tv_nsec;
-                                if (cycle_num == 0) {
-                                    control_start_clock = tmp_soem_clock;
-                                }
+                                // if (cycle_num == 0) {
+                                //     control_start_clock = tmp_soem_clock;
+                                // }
                                 double target_acc = single_gomotor_command_shared[ACCELERATION_TARGET_IDX*MOTOR_NUM + i];
-                                target_acc = acc_amplitude * sin(2.0*M_PI*acc_frequency*(tmp_soem_clock - control_start_clock));
+                                // target_acc = acc_amplitude * sin(2.0*M_PI*acc_frequency*(tmp_soem_clock - control_start_clock));
                                 // check if acc_set_time is updated
                                 if(std::abs(last_acc_set_time_ctrl_clock[i] - shm_acc_set_time_ctrl_clock)>1e-5)
                                 {
