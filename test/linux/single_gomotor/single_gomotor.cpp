@@ -577,12 +577,12 @@ void simpletest(char* ifname)
                             }
                             logging_file.close();
                         }
-                        save_log_to_file();
+                        // save_log_to_file();
                         cycle_num++;
                     }
                 } // End of cyclic loop
                 inOP = FALSE;
-                // save_log_to_file();
+                save_log_to_file();
             } // End of if (ec_slave[0].state == EC_STATE_OPERATIONAL)
             else
             {
