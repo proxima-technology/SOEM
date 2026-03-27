@@ -9,6 +9,6 @@ add_executable(single_gomotor ${SOURCES})
 target_link_libraries(single_gomotor soem pthread)
 target_include_directories(single_gomotor
                             PRIVATE
-                            $ENV{HOME}/cartpole_demo/cppmtr/config
-                            $ENV{HOME}/cartpole_demo/cppmtr/shm/shm)
+                            $ENV{HOME}/cartpole_demo/src/motor_driver/config
+                            $ENV{HOME}/cartpole_demo/src/motor_driver/shm/shm)
 install(TARGETS single_gomotor DESTINATION bin)
