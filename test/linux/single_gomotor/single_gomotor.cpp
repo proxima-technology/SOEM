@@ -125,6 +125,8 @@ double cmd_log_buffer[log_buffer_size][cmd_log_data_per_step];
 // ロギング用のバッファのインデックス
 int obs_log_index = 0;
 int cmd_log_index = 0;
+bool cmd_log_rolled = FALSE;
+bool obs_log_rolled = FALSE;
 // ロギング用のファイル名
 std::string obs_log_filename = "single_gomotor_obs_log.csv";
 std::string cmd_log_filename = "single_gomotor_cmd_log.csv";
@@ -141,6 +143,7 @@ void log_obs_data(double cpp_time, double position, double velocity)
         obs_log_buffer[0][1] = position;
         obs_log_buffer[0][2] = velocity;
         obs_log_index = 1;
+	    obs_log_rolled = TRUE;
     }
 }
 void log_cmd_data(double cpp_time, double python_set_time, double acc_cmd, double position_0, double velocity_0, double position_cmd, double velocity_cmd)
@@ -163,6 +166,7 @@ void log_cmd_data(double cpp_time, double python_set_time, double acc_cmd, doubl
         cmd_log_buffer[0][5] = position_cmd;
         cmd_log_buffer[0][6] = velocity_cmd;
         cmd_log_index = 1;
+	    cmd_log_rolled = TRUE;
     }
 }
 void save_log_to_file()
@@ -178,13 +182,30 @@ void save_log_to_file()
     cmd_log_file.precision(10);
 
     // 観測データのログをファイルに保存
-
+    if (obs_log_rolled){
+	    for (int i = obs_log_index; i < log_buffer_size; i++) {
+        	obs_log_file << obs_log_buffer[i][0] << ","
+                     << obs_log_buffer[i][1] << ","
+                     << obs_log_buffer[i][2] << "\n";
+    	}
+    }
     for (int i = 0; i < obs_log_index; i++) {
         obs_log_file << obs_log_buffer[i][0] << ","
                      << obs_log_buffer[i][1] << ","
                      << obs_log_buffer[i][2] << "\n";
     }
     // 指令データのログをファイルに保存
+    if (cmd_log_rolled){
+        for (int i = cmd_log_index; i < log_buffer_size; i++) {
+        cmd_log_file << cmd_log_buffer[i][0] << ","
+                    << cmd_log_buffer[i][1] << ","
+                    << cmd_log_buffer[i][2] << ","
+                    << cmd_log_buffer[i][3] << ","
+                    << cmd_log_buffer[i][4] << ","
+                    << cmd_log_buffer[i][5] << ","
+                    << cmd_log_buffer[i][6] << "\n";
+        }
+    }
     for (int i = 0; i < cmd_log_index; i++) {
         cmd_log_file << cmd_log_buffer[i][0] << ","
                      << cmd_log_buffer[i][1] << ","
