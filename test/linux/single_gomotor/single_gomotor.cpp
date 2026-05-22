@@ -99,7 +99,7 @@ void set_output(uint16 slave_no, uint8 module_index, uint8* value)
 void set_init()
 {
     /*RS485通信で使うidの変更*/
-    set_id(0, motor[0].send);
+    set_id(1, motor[0].send);
     // set_id(1, motor[1].send);
     // set_id(0, motor[2].send);
 
@@ -377,15 +377,16 @@ void simpletest(char* ifname)
                 for (uint i = 0; i < MOTOR_NUM; i++) {
                     motor[i].recv = get_recv_pointer(i);
                 }
-                clock_t cyc_f = 0, cyc_f_pre = 0;
+                //clock_t cyc_f = 0, cyc_f_pre = 0;
                 float tor = 0;
                 float tor2 = 0;
-                struct timespec t_st[MOTOR_NUM], t_end[MOTOR_NUM];
+                struct timespec t_st[MOTOR_NUM], t_end[MOTOR_NUM], cyc_st, cyc_end;
                 /* cyclic loop */
                 for (;;) {
-                    cyc_f = clock();
+                    //cyc_f = clock();
+                    clock_gettime(CLOCK_MONOTONIC, &cyc_st);
                     //printf("\033[%d;1H", 30);
-                    double elapsedtime = (double)(cyc_f - cyc_f_pre) / CLOCKS_PER_SEC;
+                    //double elapsedtime = (double)(cyc_f - cyc_f_pre) / CLOCKS_PER_SEC;
                     single_gomotor_command_shared = proc_comm_command->read_stdvec();
                     for (int i = 0; i < MOTOR_NUM; i++) {
                         if (recv_fin[i]) {
@@ -553,7 +554,16 @@ void simpletest(char* ifname)
                     }
                     if (0 == keepRunning)
                         break;
-                    osal_usleep(50);
+		    double loop_time = 0;
+		    do{
+                    	clock_gettime(CLOCK_MONOTONIC, &cyc_end);
+		    	loop_time = (double)(cyc_end.tv_nsec - cyc_st.tv_nsec) / 1000000;
+			if(loop_time < 0){
+				loop_time += 1000;
+			}
+		    }while(loop_time <= 1);
+
+                    //osal_usleep(50);
                 }  // End of cyclic loop
                 inOP = FALSE;
                 save_log_to_file();
